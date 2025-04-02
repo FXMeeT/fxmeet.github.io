@@ -31,7 +31,7 @@
             for (let i = 0; i < totalImages; i++) {
                 const imgDiv = document.createElement('div');
                 imgDiv.className = 'image';
-                imgDiv.style.backgroundImage = `url('https://picsum.photos/150?random=${i + Math.random()}')`;
+                imgDiv.style.backgroundImage = `url('https://picsum.photos/${i + Math.random()}?random=${i + Math.random()}')`;
                 document.body.appendChild(imgDiv);
             }
         }createImageGrid();
