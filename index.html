@@ -1,3 +1,72 @@
-<DOCTYPE html>
-<html>
+<!DOCTYPE html><html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Picsum Cubes</title>
+    <style>
+        body {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #111;
+        }
+        .scene {
+            width: 150px;
+            height: 150px;
+            perspective: 600px;
+            margin: 20px;
+        }
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotateCube 5s infinite linear;
+        }
+        .face {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background-size: cover;
+            background-position: center;
+            border: 2px solid white;
+        }
+        .front  { transform: rotateY(  0deg) translateZ(75px); }
+        .back   { transform: rotateY(180deg) translateZ(75px); }
+        .right  { transform: rotateY( 90deg) translateZ(75px); }
+        .left   { transform: rotateY(-90deg) translateZ(75px); }
+        .top    { transform: rotateX( 90deg) translateZ(75px); }
+        .bottom { transform: rotateX(-90deg) translateZ(75px); }@keyframes rotateCube {
+        from { transform: rotateX(0deg) rotateY(0deg); }
+        to { transform: rotateX(360deg) rotateY(360deg); }
+    }
+</style>
+
+</head>
 <body>
+    <script>
+        function createCube() {
+            const scene = document.createElement('div');
+            scene.className = 'scene';const cube = document.createElement('div');
+        cube.className = 'cube';
+        
+        for (let i = 0; i < 6; i++) {
+            const face = document.createElement('div');
+            face.className = 'face';
+            face.style.backgroundImage = `url('https://picsum.photos/150?random=${Math.random()}')`;
+            cube.appendChild(face);
+        }
+        
+        scene.appendChild(cube);
+        document.body.appendChild(scene);
+    }
+    
+    for (let i = 0; i < 6; i++) {
+        createCube();
+    }
+</script>
+
+</body>
+</html>
