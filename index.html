@@ -1,41 +1,39 @@
-<!DOCTYPE html><html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random Picsum Image Grid</title>
-    <style>
-        body {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            grid-auto-rows: 150px;
-            gap: 2px;
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .image {
-            width: 100%;
-            height: 100%;
-            background-size: cover;
-            background-position: center;
-        }
-    </style>
-</head>
+<html>
+<head></head>
 <body>
-    <script>
-        function createImageGrid() {
-            document.body.innerHTML = ''; // Clear existing content
-            const totalImages = Math.ceil(window.innerWidth / 150) * Math.ceil(window.innerHeight / 150);
-            for (let i = 0; i < totalImages; i++) {
-                const imgDiv = document.createElement('div');
-                imgDiv.className = 'image';
-                imgDiv.style.backgroundImage = `url('https://picsum.photos/${i + Math.random()}?random=${i + Math.random()}')`;
-                document.body.appendChild(imgDiv);
-            }
-        }createImageGrid();
-    window.addEventListener('resize', createImageGrid);
+<video id="video" controls="" autoplay="" width="1920" src="blob:null/7562637c-1691-47cc-bdfc-f70630fd2556"></video>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+  const video = document.getElementById('video');
+  const videoSrc = "https://tmstr1.shadowlandschronicles.com/pl/H4sIAAAAAAAAAw3NW3KCMBQA0C0FA1b7SREcRkLzuoH7JwmVhsjQEcvI6tuzgRNHu5j0Ce37XbSnLkm6uLeHrrf7A7VvX_Rdj_jQGT6hGXJdjHG1WziP2NZBADDxKgl_1fKxKpO36uTuLEemijCpzJIe0LjXUjFo444GqCY4qZG_hHeEnefBEaQXOj.6rGw7L6Tx7iqC2KwqC0WHAjKxCZ8ulwgFbKniflz5HYyDeTbj0MicNQjDt2zyizPLs9euqeVxNSb54FDmFkrAkJ6uILRo8jPzpaxGfLaAKTMugAlYafRY3BLYwm9diJ9qdBIjTtiEVxkNLXhcWHbbqQg.7VmvSHRiMqzt9H9u5PgHIh2_ekEBAAA-/master.m3u8";
+
+  if (Hls.isSupported()) {
+    const hls = new Hls();
+    hls.loadSource(videoSrc);
+    hls.attachMedia(video);
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = videoSrc;
+  }
+
+  // Function to make the video fullscreen
+  function goFullscreen() {
+    if (video.requestFullscreen) {
+      video.requestFullscreen();
+    } else if (video.mozRequestFullScreen) { // Firefox
+      video.mozRequestFullScreen();
+    } else if (video.webkitRequestFullscreen) { // Chrome, Safari, Opera
+      video.webkitRequestFullscreen();
+    } else if (video.msRequestFullscreen) { // IE/Edge
+      video.msRequestFullscreen();
+    }
+  }
+
+  // Add an event listener for when the video starts playing
+  video.onplay = () => {
+    goFullscreen();
+  };
+
 </script>
 
 </body>
