@@ -60,6 +60,32 @@ function unpadData(data) {
   return data.slice(0, data.length - pad);
 }
 
+// --- MIME Lookup ---
+function getMimeByExt(ext) {
+  const map = {
+    "mp3": "audio/mpeg",
+    "mp4": "video/mp4",
+    "wav": "audio/wav",
+    "ogg": "audio/ogg",
+    "pdf": "application/pdf",
+    "zip": "application/zip",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xls": "application/vnd.ms-excel",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "ppt": "application/vnd.ms-powerpoint",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "txt": "text/plain",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "json": "application/json",
+    "csv": "text/csv"
+  };
+  return map[ext.toLowerCase()] || "application/octet-stream";
+}
+
 // --- ENCRYPT ---
 async function encryptFile() {
   const file = document.getElementById("encodeFile").files[0];
@@ -77,13 +103,13 @@ async function encryptFile() {
 
   const encrypted = await crypto.subtle.encrypt({name:"AES-CBC", iv}, key, padded);
 
-  // save: iv + encrypted (force binary type)
+  // save: iv + encrypted
   const blob = new Blob([iv, new Uint8Array(encrypted)], { type: "application/octet-stream" });
   const link = document.getElementById("downloadEnc");
   link.href = URL.createObjectURL(blob);
-  link.download = file.name + ".enc";
+  link.download = file.name + ".enc"; // keep original filename + .enc
   link.classList.remove("hidden");
-  link.textContent = "Download " + file.name + ".enc";
+  link.textContent = "Download " + link.download;
 }
 
 // --- DECRYPT ---
@@ -104,13 +130,24 @@ async function decryptFile() {
     const decrypted = await crypto.subtle.decrypt({name:"AES-CBC", iv}, key, data);
     const unpadded = unpadData(new Uint8Array(decrypted));
 
-    const blob = new Blob([unpadded], { type: "application/octet-stream" });
+    // build new filename: originalname.dec.ext
+    let name = file.name.replace(/\.enc$/, ""); // strip .enc
+    let base = name, ext = "";
+    const lastDot = name.lastIndexOf(".");
+    if (lastDot !== -1) {
+      base = name.substring(0, lastDot);
+      ext = name.substring(lastDot + 1);
+    }
+
+    const mime = ext ? getMimeByExt(ext) : "application/octet-stream";
+    const blob = new Blob([unpadded], { type: mime });
+
     const link = document.getElementById("downloadDec");
     link.href = URL.createObjectURL(blob);
-    // strip only ".enc" from the end
-    link.download = file.name.replace(/\.enc$/, "");
+    link.download = ext ? base + ".dec." + ext : base + ".dec";
     link.classList.remove("hidden");
     link.textContent = "Download " + link.download;
+
   } catch(e) {
     console.error(e);
     alert("❌ Decryption failed. Wrong key or corrupted file.");
@@ -130,4 +167,4 @@ function copyKey() {
 }
 </script>
 </body>
-</html
+</html>
