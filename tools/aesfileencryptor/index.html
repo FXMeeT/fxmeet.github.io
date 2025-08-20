@@ -107,7 +107,7 @@ async function encryptFile() {
   const blob = new Blob([iv, new Uint8Array(encrypted)], { type: "application/octet-stream" });
   const link = document.getElementById("downloadEnc");
   link.href = URL.createObjectURL(blob);
-  link.download = file.name + ".enc"; // keep original filename + .enc
+  link.download = file.name + ".enclocked"; // keep original filename + .enc
   link.classList.remove("hidden");
   link.textContent = "Download " + link.download;
 }
@@ -131,7 +131,7 @@ async function decryptFile() {
     const unpadded = unpadData(new Uint8Array(decrypted));
 
     // build new filename: originalname.dec.ext
-    let name = file.name.replace(/\.enc$/, ""); // strip .enc
+    let name = file.name.replace(/\.enclocked$/, ""); // strip .enc
     let base = name, ext = "";
     const lastDot = name.lastIndexOf(".");
     if (lastDot !== -1) {
