@@ -77,8 +77,8 @@ async function encryptFile() {
 
   const encrypted = await crypto.subtle.encrypt({name:"AES-CBC", iv}, key, padded);
 
-  // save: iv + encrypted
-  const blob = new Blob([iv, new Uint8Array(encrypted)]);
+  // save: iv + encrypted (force binary type)
+  const blob = new Blob([iv, new Uint8Array(encrypted)], { type: "application/octet-stream" });
   const link = document.getElementById("downloadEnc");
   link.href = URL.createObjectURL(blob);
   link.download = file.name + ".enc";
@@ -104,10 +104,11 @@ async function decryptFile() {
     const decrypted = await crypto.subtle.decrypt({name:"AES-CBC", iv}, key, data);
     const unpadded = unpadData(new Uint8Array(decrypted));
 
-    const blob = new Blob([unpadded]);
+    const blob = new Blob([unpadded], { type: "application/octet-stream" });
     const link = document.getElementById("downloadDec");
     link.href = URL.createObjectURL(blob);
-    link.download = file.name.replace(/\.enc.txt$/,"");
+    // strip only ".enc" from the end
+    link.download = file.name.replace(/\.enc$/, "");
     link.classList.remove("hidden");
     link.textContent = "Download " + link.download;
   } catch(e) {
@@ -129,4 +130,4 @@ function copyKey() {
 }
 </script>
 </body>
-</html>
+</html
