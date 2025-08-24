@@ -2,102 +2,199 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AES File Encryptor/Decryptor</title>
+  <title>AES File Encrypt/Decrypt</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    button, a { margin-top: 10px; padding: 8px 14px; cursor: pointer; display:inline-block; }
+    input[type="file"], input[type="text"] { margin-top: 10px; padding: 6px; width: 320px; }
+    .section { margin-top: 20px; border: 1px solid #ccc; padding: 15px; border-radius: 8px; max-width: 450px; }
+    .hidden { display: none; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+  </style>
 </head>
 <body>
-  <h2>AES File Encryptor/Decryptor</h2>
+  <h2>AES File Tool</h2>
 
-  <input type="file" id="fileInput"><br><br>
-  <input type="password" id="password" placeholder="Enter password"><br><br>
+  <label><input type="radio" name="mode" value="encode" onclick="switchMode('encode')"> Encode</label>
+  <label><input type="radio" name="mode" value="decode" onclick="switchMode('decode')"> Decode</label>
 
-  <button id="encryptBtn" onclick="encryptFile()">Encrypt</button>
-  <button id="decryptBtn" onclick="decryptFile()">Decrypt</button>
+  <!-- Encode -->
+  <div id="encodeSection" class="section hidden">
+    <h3>Encode</h3>
+    <input type="file" id="encodeFile"><br>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input type="text" id="encodeKey" readonly placeholder="Generated key will appear here">
+      <button onclick="copyKey()">Copy</button>
+    </div>
+    <button id="encryptBtn" onclick="encryptFile()">Encrypt</button><br>
+    <a id="downloadEnc" class="hidden">Download Encrypted File</a>
+  </div>
 
-  <p id="status"></p>
-  <a id="downloadLink" style="display:none;">Download</a>
+  <!-- Decode -->
+  <div id="decodeSection" class="section hidden">
+    <h3>Decode</h3>
+    <input type="file" id="decodeFile"><br>
+    <input type="text" id="decodeKey" placeholder="Paste key"><br>
+    <button id="decryptBtn" onclick="decryptFile()">Decrypt</button><br>
+    <a id="downloadDec" class="hidden">Download Original File</a>
+  </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-  <script>
-    async function encryptFile() {
-      const fileInput = document.getElementById('fileInput');
-      const password = document.getElementById('password').value;
-      const encryptBtn = document.getElementById('encryptBtn');
-      const status = document.getElementById('status');
-      const downloadLink = document.getElementById('downloadLink');
+<script>
+function switchMode(mode) {
+  document.getElementById("encodeSection").classList.add("hidden");
+  document.getElementById("decodeSection").classList.add("hidden");
+  if (mode === "encode") document.getElementById("encodeSection").classList.remove("hidden");
+  else document.getElementById("decodeSection").classList.remove("hidden");
+}
 
-      if (!fileInput.files.length || !password) {
-        alert("Select a file and enter a password!");
-        return;
-      }
+// --- Padding helpers (PKCS7) ---
+function padData(data) {
+  const blockSize = 16;
+  const pad = blockSize - (data.length % blockSize);
+  const padded = new Uint8Array(data.length + pad);
+  padded.set(data);
+  padded.fill(pad, data.length);
+  return padded;
+}
+function unpadData(data) {
+  const pad = data[data.length-1];
+  return data.slice(0, data.length - pad);
+}
 
-      const file = fileInput.files[0];
-      encryptBtn.disabled = true;
-      status.textContent = "Encrypting... please wait";
-      downloadLink.style.display = "none";
+// --- MIME Lookup ---
+function getMimeByExt(ext) {
+  const map = {
+    // Audio
+    "mp3": "audio/mpeg","wav": "audio/wav","ogg": "audio/ogg","oga": "audio/ogg","m4a": "audio/mp4",
+    "aac": "audio/aac","flac": "audio/flac","mid": "audio/midi","midi": "audio/midi","weba": "audio/webm",
+    // Video
+    "mp4": "video/mp4","ogv": "video/ogg","webm": "video/webm","avi": "video/x-msvideo","mov": "video/quicktime",
+    "wmv": "video/x-ms-wmv","mkv": "video/x-matroska","flv": "video/x-flv","3gp": "video/3gpp","3g2": "video/3gpp2",
+    // Images
+    "jpg": "image/jpeg","jpeg": "image/jpeg","png": "image/png","gif": "image/gif","bmp": "image/bmp",
+    "tiff": "image/tiff","tif": "image/tiff","ico": "image/vnd.microsoft.icon","svg": "image/svg+xml",
+    "webp": "image/webp","heic": "image/heic","heif": "image/heif",
+    // Documents
+    "pdf": "application/pdf","txt": "text/plain","csv": "text/csv","json": "application/json","xml": "application/xml",
+    "yaml": "application/x-yaml","yml": "application/x-yaml","md": "text/markdown","html": "text/html","htm": "text/html",
+    "xhtml": "application/xhtml+xml",
+    // Microsoft Office
+    "doc": "application/msword","docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xls": "application/vnd.ms-excel","xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "ppt": "application/vnd.ms-powerpoint","pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    // Archives & Compressed
+    "zip": "application/zip","tar": "application/x-tar","gz": "application/gzip","tgz": "application/gzip",
+    "rar": "application/vnd.rar","7z": "application/x-7z-compressed","bz": "application/x-bzip","bz2": "application/x-bzip2",
+    // Code
+    "js": "application/javascript","mjs": "application/javascript","ts": "application/typescript","jsx": "text/jsx",
+    "tsx": "text/tsx","css": "text/css","scss": "text/x-scss","less": "text/x-less","py": "text/x-python",
+    "java": "text/x-java-source","c": "text/x-c","cpp": "text/x-c++","cs": "text/x-csharp","php": "application/x-httpd-php",
+    "rb": "application/x-ruby","go": "text/x-go","sh": "application/x-sh","bat": "application/x-msdownload","pl": "application/x-perl",
+    // Fonts
+    "ttf": "font/ttf","otf": "font/otf","woff": "font/woff","woff2": "font/woff2","eot": "application/vnd.ms-fontobject",
+    // Other
+    "apk": "application/vnd.android.package-archive","exe": "application/vnd.microsoft.portable-executable",
+    "msi": "application/x-msdownload","bin": "application/octet-stream","iso": "application/x-iso9660-image",
+    "dmg": "application/x-apple-diskimage","swf": "application/x-shockwave-flash"
+  };
+  return map[ext.toLowerCase()] || "application/octet-stream";
+}
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const wordArray = CryptoJS.lib.WordArray.create(e.target.result);
-        const encrypted = CryptoJS.AES.encrypt(wordArray, password).toString();
+// --- ENCRYPT ---
+async function encryptFile() {
+  const btn = document.getElementById("encryptBtn");
+  btn.disabled = true;
 
-        const blob = new Blob([encrypted], { type: "text/plain" });
-        const url = URL.createObjectURL(blob);
+  const file = document.getElementById("encodeFile").files[0];
+  if (!file) { 
+    alert("No file selected!"); 
+    btn.disabled = false; 
+    return; 
+  }
 
-        downloadLink.href = url;
-        downloadLink.download = file.name + ".fxmencrypted";
-        downloadLink.textContent = "Download Encrypted File";
-        downloadLink.style.display = "block";
+  const key = await crypto.subtle.generateKey({name:"AES-CBC", length:256}, true, ["encrypt","decrypt"]);
+  const raw = await crypto.subtle.exportKey("raw", key);
+  const b64Key = btoa(String.fromCharCode(...new Uint8Array(raw)));
+  document.getElementById("encodeKey").value = b64Key;
 
-        status.textContent = "Encryption complete!";
-        encryptBtn.disabled = false;
-      };
-      reader.readAsArrayBuffer(file);
-    }
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  const data = new Uint8Array(await file.arrayBuffer());
+  const padded = padData(data);
 
-    async function decryptFile() {
-      const fileInput = document.getElementById('fileInput');
-      const password = document.getElementById('password').value;
-      const decryptBtn = document.getElementById('decryptBtn');
-      const status = document.getElementById('status');
-      const downloadLink = document.getElementById('downloadLink');
+  const encrypted = await crypto.subtle.encrypt({name:"AES-CBC", iv}, key, padded);
 
-      if (!fileInput.files.length || !password) {
-        alert("Select a file and enter a password!");
-        return;
-      }
+  const blob = new Blob([iv, new Uint8Array(encrypted)], { type: "application/octet-stream" });
+  const link = document.getElementById("downloadEnc");
+  link.href = URL.createObjectURL(blob);
+  link.download = file.name + ".fxmencrypted";
+  link.classList.remove("hidden");
+  link.textContent = "Download " + link.download;
 
-      const file = fileInput.files[0];
-      decryptBtn.disabled = true;
-      status.textContent = "Decrypting... please wait";
-      downloadLink.style.display = "none";
+  btn.disabled = false;
+}
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const encryptedText = e.target.result;
-          const decrypted = CryptoJS.AES.decrypt(encryptedText, password);
-          const typedArray = new Uint8Array(decrypted.sigBytes);
-          for (let i = 0; i < decrypted.sigBytes; i++) {
-            typedArray[i] = (decrypted.words[i >>> 2] >> (24 - (i % 4) * 8)) & 0xff;
-          }
+// --- DECRYPT ---
+async function decryptFile() {
+  const btn = document.getElementById("decryptBtn");
+  btn.disabled = true;
 
-          let originalName = file.name.replace(/\.fxmencrypted$/, "");
-          const blob = new Blob([typedArray]);
-          const url = URL.createObjectURL(blob);
+  const file = document.getElementById("decodeFile").files[0];
+  if (!file) { 
+    alert("No encrypted file selected!"); 
+    btn.disabled = false; 
+    return; 
+  }
+  const b64Key = document.getElementById("decodeKey").value.trim();
+  if (!b64Key) { 
+    alert("No key provided!"); 
+    btn.disabled = false; 
+    return; 
+  }
 
-          downloadLink.href = url;
-          downloadLink.download = originalName;
-          downloadLink.textContent = "Download Decrypted File";
-          downloadLink.style.display = "block";
+  const rawKey = Uint8Array.from(atob(b64Key), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("raw", rawKey, {name:"AES-CBC"}, false, ["decrypt"]);
 
-          status.textContent = "Decryption complete!";
-        } catch (err) {
-          status.textContent = "Decryption failed. Wrong password or corrupted file.";
-        }
-        decryptBtn.disabled = false;
-      };
-      reader.readAsText(file);
-    }
-  </script>
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const iv = bytes.slice(0,16);
+  const data = bytes.slice(16);
+
+  try {
+    const decrypted = await crypto.subtle.decrypt({name:"AES-CBC", iv}, key, data);
+    const unpadded = unpadData(new Uint8Array(decrypted));
+
+    let originalName = file.name.replace(/\.fxmencrypted$/, "");
+    let ext = "";
+    const lastDot = originalName.lastIndexOf(".");
+    if (lastDot !== -1) ext = originalName.substring(lastDot + 1);
+    const mime = ext ? getMimeByExt(ext) : "application/octet-stream";
+
+    const blob = new Blob([unpadded], { type: mime });
+
+    const link = document.getElementById("downloadDec");
+    link.href = URL.createObjectURL(blob);
+    link.download = originalName;
+    link.classList.remove("hidden");
+    link.textContent = "Download " + link.download;
+
+  } catch(e) {
+    console.error(e);
+    alert("❌ Decryption failed. Wrong key or corrupted file.");
+  }
+
+  btn.disabled = false;
+}
+
+// --- Copy Key ---
+function copyKey() {
+  const keyField = document.getElementById("encodeKey");
+  if (!keyField.value) return alert("No key to copy!");
+  navigator.clipboard.writeText(keyField.value).then(() => {
+    alert("Key copied to clipboard ✅");
+  }).catch(err => {
+    console.error(err);
+    alert("Copy failed");
+  });
+}
+</script>
 </body>
 </html>
