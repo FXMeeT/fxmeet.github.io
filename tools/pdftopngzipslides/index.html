@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF to PNG ZIP Converter</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: #eef2f7;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+      text-align: center;
+      width: 400px;
+    }
+    h2 {
+      margin-bottom: 20px;
+      color: #2c3e50;
+    }
+    input[type="file"], button {
+      margin: 10px 0;
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    .progress-wrapper {
+      margin-top: 20px;
+      width: 100%;
+      background: #dce4ec;
+      border-radius: 10px;
+      overflow: hidden;
+      height: 22px;
+      display: none;
+      position: relative;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #3498db;
+      transition: width 0.3s;
+    }
+    .progress-text {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+      pointer-events: none;
+    }
+    #status {
+      margin-top: 15px;
+      font-size: 15px;
+      color: #34495e;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>PDF to PNG ZIP Converter</h2>
+    <input type="file" id="pdfInput" accept="application/pdf">
+    <br>
+    <button id="convertBtn">Convert</button>
+
+    <div class="progress-wrapper">
+      <div class="progress-bar" id="progressBar"></div>
+      <div class="progress-text" id="progressText">0.00%</div>
+    </div>
+    <p id="status"></p>
+  </div>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- FileSaver -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <script>
+    document.getElementById("convertBtn").addEventListener("click", async () => {
+      const fileInput = document.getElementById("pdfInput");
+      const progressWrapper = document.querySelector(".progress-wrapper");
+      const progressBar = document.getElementById("progressBar");
+      const progressText = document.getElementById("progressText");
+      const status = document.getElementById("status");
+
+      if (!fileInput.files.length) {
+        alert("Please select a PDF file first.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const fileReader = new FileReader();
+      fileReader.readAsArrayBuffer(file);
+
+      fileReader.onload = async function() {
+        const pdfData = new Uint8Array(fileReader.result);
+        const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+
+        status.textContent = `Loaded PDF with ${pdf.numPages} slides. Starting...`;
+        progressWrapper.style.display = "block";
+
+        const zip = new JSZip();
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 2 });
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+          const arrayBuffer = await blob.arrayBuffer();
+
+          const filename = `slide-${String(i).padStart(3, "0")}.png`;
+          zip.file(filename, arrayBuffer);
+
+          // ✅ Dynamic percentage with two decimals
+          const percent = ((i / pdf.numPages) * 100).toFixed(2);
+          progressBar.style.width = percent + "%";
+          progressText.textContent = percent + "%";
+          status.textContent = `Converting slide ${i} of ${pdf.numPages}...`;
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        saveAs(zipBlob, `${file.name.replace(/\.pdf$/i, "")}_extracted.zip`);
+
+        status.textContent = "✅ Conversion complete! ZIP downloaded.";
+        progressBar.style.width = "100%";
+        progressText.textContent = "100.00%";
+      };
+    });
+  </script>
+</body>
+</html>
