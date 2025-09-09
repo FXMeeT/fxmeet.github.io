@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AES File/String Encrypt/Decrypt</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    button, a { margin-top: 10px; padding: 8px 14px; cursor: pointer; display:inline-block; }
+    input[type="file"], input[type="text"], textarea { margin-top: 10px; padding: 6px; width: 320px; }
+    textarea { height: 100px; resize: vertical; }
+    .section { margin-top: 20px; border: 1px solid #ccc; padding: 15px; border-radius: 8px; max-width: 500px; }
+    .hidden { display: none; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <h2>AES File/String Tool</h2>
+
+  <label><input type="radio" name="mode" value="encode" onclick="switchMode('encode')"> Encode</label>
+  <label><input type="radio" name="mode" value="decode" onclick="switchMode('decode')"> Decode</label>
+
+  <!-- Encode -->
+  <div id="encodeSection" class="section hidden">
+    <h3>Encode</h3>
+    <label><input type="radio" name="encodeType" value="file" checked onclick="toggleEncodeType('file')"> File</label>
+    <label><input type="radio" name="encodeType" value="string" onclick="toggleEncodeType('string')"> String</label>
+
+    <div id="encodeFileWrap">
+      <input type="file" id="encodeFile"><br>
+    </div>
+    <div id="encodeStringWrap" class="hidden">
+      <textarea id="encodeString" placeholder="Enter text to encrypt"></textarea><br>
+    </div>
+
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input type="text" id="encodeKey" readonly placeholder="Generated AES key (base64)">
+      <button onclick="copyKey()">Copy Key</button>
+    </div>
+    <button id="encryptBtn" onclick="encryptData()">Encrypt</button><br>
+    
+    <a id="downloadEnc" class="hidden"></a>
+    <div id="encodedStringWrap" class="hidden">
+      <textarea id="encodedStringOutput" readonly></textarea><br>
+      <button onclick="copyEncoded()">Copy Encrypted String</button>
+    </div>
+  </div>
+
+  <!-- Decode -->
+  <div id="decodeSection" class="section hidden">
+    <h3>Decode</h3>
+    <label><input type="radio" name="decodeType" value="file" checked onclick="toggleDecodeType('file')"> File</label>
+    <label><input type="radio" name="decodeType" value="string" onclick="toggleDecodeType('string')"> String</label>
+
+    <div id="decodeFileWrap">
+      <input type="file" id="decodeFile"><br>
+    </div>
+    <div id="decodeStringWrap" class="hidden">
+      <textarea id="decodeString" placeholder="Paste encrypted string"></textarea><br>
+    </div>
+
+    <input type="text" id="decodeKey" placeholder="Paste AES key (base64)"><br>
+    <button id="decryptBtn" onclick="decryptData()">Decrypt</button><br>
+    
+    <a id="downloadDec" class="hidden"></a>
+    <div id="decodedStringWrap" class="hidden">
+      <textarea id="decodedStringOutput" readonly></textarea><br>
+      <button onclick="copyDecoded()">Copy Decrypted String</button>
+    </div>
+  </div>
+
+<script>
+// Switch encode/decode mode
+function switchMode(mode) {
+  document.getElementById("encodeSection").classList.add("hidden");
+  document.getElementById("decodeSection").classList.add("hidden");
+  if (mode === "encode") document.getElementById("encodeSection").classList.remove("hidden");
+  else document.getElementById("decodeSection").classList.remove("hidden");
+}
+
+// Toggle encode type
+function toggleEncodeType(type) {
+  document.getElementById("encodeFileWrap").classList.add("hidden");
+  document.getElementById("encodeStringWrap").classList.add("hidden");
+  if (type === "file") document.getElementById("encodeFileWrap").classList.remove("hidden");
+  else document.getElementById("encodeStringWrap").classList.remove("hidden");
+}
+
+// Toggle decode type
+function toggleDecodeType(type) {
+  document.getElementById("decodeFileWrap").classList.add("hidden");
+  document.getElementById("decodeStringWrap").classList.add("hidden");
+  if (type === "file") document.getElementById("decodeFileWrap").classList.remove("hidden");
+  else document.getElementById("decodeStringWrap").classList.remove("hidden");
+}
+
+// Padding helpers (PKCS7)
+function padData(data) {
+  const blockSize = 16;
+  const pad = blockSize - (data.length % blockSize);
+  const padded = new Uint8Array(data.length + pad);
+  padded.set(data);
+  padded.fill(pad, data.length);
+  return padded;
+}
+function unpadData(data) {
+  const pad = data[data.length-1];
+  return data.slice(0, data.length - pad);
+}
+
+// Helper: text <-> Uint8Array
+function strToUint8(str) {
+  return new TextEncoder().encode(str);
+}
+function uint8ToStr(uint8) {
+  return new TextDecoder().decode(uint8);
+}
+
+// --- ENCRYPT ---
+async function encryptData() {
+  const btn = document.getElementById("encryptBtn");
+  btn.disabled = true;
+
+  const type = document.querySelector("input[name='encodeType']:checked").value;
+  const key = await crypto.subtle.generateKey({name:"AES-CBC", length:256}, true, ["encrypt","decrypt"]);
+  const raw = await crypto.subtle.exportKey("raw", key);
+  const b64Key = btoa(String.fromCharCode(...new Uint8Array(raw)));
+  document.getElementById("encodeKey").value = b64Key;
+
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  let data;
+
+  if (type === "file") {
+    const file = document.getElementById("encodeFile").files[0];
+    if (!file) { alert("No file selected!"); btn.disabled = false; return; }
+    data = new Uint8Array(await file.arrayBuffer());
+    const padded = padData(data);
+    const encrypted = await crypto.subtle.encrypt({name:"AES-CBC", iv}, key, padded);
+    const blob = new Blob([iv, new Uint8Array(encrypted)], { type: "application/octet-stream" });
+    const link = document.getElementById("downloadEnc");
+    link.href = URL.createObjectURL(blob);
+    link.download = file.name + ".fxmencrypted";
+    link.classList.remove("hidden");
+    link.textContent = "Download " + link.download;
+    document.getElementById("encodedStringWrap").classList.add("hidden");
+  } else {
+    const text = document.getElementById("encodeString").value.trim();
+    if (!text) { alert("Please enter text!"); btn.disabled = false; return; }
+    data = strToUint8(text);
+    const padded = padData(data);
+    const encrypted = new Uint8Array(await crypto.subtle.encrypt({name:"AES-CBC", iv}, key, padded));
+    const output = btoa(String.fromCharCode(...iv) + String.fromCharCode(...encrypted));
+    document.getElementById("encodedStringOutput").value = output;
+    document.getElementById("encodedStringWrap").classList.remove("hidden");
+    document.getElementById("downloadEnc").classList.add("hidden");
+  }
+
+  btn.disabled = false;
+}
+
+// --- DECRYPT ---
+async function decryptData() {
+  const btn = document.getElementById("decryptBtn");
+  btn.disabled = true;
+
+  const type = document.querySelector("input[name='decodeType']:checked").value;
+  const b64Key = document.getElementById("decodeKey").value.trim();
+  if (!b64Key) { alert("No key provided!"); btn.disabled = false; return; }
+
+  const rawKey = Uint8Array.from(atob(b64Key), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("raw", rawKey, {name:"AES-CBC"}, false, ["decrypt"]);
+
+  if (type === "file") {
+    const file = document.getElementById("decodeFile").files[0];
+    if (!file) { alert("No encrypted file selected!"); btn.disabled = false; return; }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const iv = bytes.slice(0,16);
+    const data = bytes.slice(16);
+    try {
+      const decrypted = await crypto.subtle.decrypt({name:"AES-CBC", iv}, key, data);
+      const unpadded = unpadData(new Uint8Array(decrypted));
+      let originalName = file.name.replace(/\.fxmencrypted$/, "");
+      const blob = new Blob([unpadded], { type: "application/octet-stream" });
+      const link = document.getElementById("downloadDec");
+      link.href = URL.createObjectURL(blob);
+      link.download = originalName;
+      link.classList.remove("hidden");
+      link.textContent = "Download " + link.download;
+      document.getElementById("decodedStringWrap").classList.add("hidden");
+    } catch(e) {
+      console.error(e);
+      alert("❌ Decryption failed. Wrong key or corrupted file.");
+    }
+  } else {
+    const encStr = document.getElementById("decodeString").value.trim();
+    if (!encStr) { alert("Please paste encrypted string!"); btn.disabled = false; return; }
+    try {
+      const allBytes = Uint8Array.from(atob(encStr), c => c.charCodeAt(0));
+      const iv = allBytes.slice(0,16);
+      const data = allBytes.slice(16);
+      const decrypted = await crypto.subtle.decrypt({name:"AES-CBC", iv}, key, data);
+      const unpadded = unpadData(new Uint8Array(decrypted));
+      document.getElementById("decodedStringOutput").value = uint8ToStr(unpadded);
+      document.getElementById("decodedStringWrap").classList.remove("hidden");
+      document.getElementById("downloadDec").classList.add("hidden");
+    } catch(e) {
+      console.error(e);
+      alert("❌ Decryption failed. Wrong key or corrupted string.");
+    }
+  }
+
+  btn.disabled = false;
+}
+
+// Copy key
+function copyKey() {
+  const keyField = document.getElementById("encodeKey");
+  if (!keyField.value) return alert("No key to copy!");
+  navigator.clipboard.writeText(keyField.value).then(() => {
+    alert("Key copied ✅");
+  });
+}
+
+// Copy encoded string
+function copyEncoded() {
+  const val = document.getElementById("encodedStringOutput").value;
+  if (!val) return alert("No encrypted string!");
+  navigator.clipboard.writeText(val).then(() => {
+    alert("Encrypted string copied ✅");
+  });
+}
+
+// Copy decoded string
+function copyDecoded() {
+  const val = document.getElementById("decodedStringOutput").value;
+  if (!val) return alert("No decrypted string!");
+  navigator.clipboard.writeText(val).then(() => {
+    alert("Decrypted string copied ✅");
+  });
+}
+</script>
+</body>
+</html>
