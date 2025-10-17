@@ -120,7 +120,7 @@
   </head>
 
   <body>
-    <h2>Video Transformer — Teleporting Watermark + Custom Resizing</h2>
+    <h2>AI Watermark Applier - Make realistic videos look ai generated.</h2>
 
     <!-- VIDEO UPLOAD + RESIZE -->
     <div class="panel">
@@ -279,7 +279,7 @@
     // --- Load Default Watermark ---
     function loadDefaultWatermark() {
       watermarkImg = new Image();
-      watermarkImg.src = "image.png"; // must be in same folder as HTML (optional)
+      watermarkImg.src = "static/wm.png"; // must be in same folder as HTML (optional)
       watermarkImg.onload = () => {
         watermarkLoaded = true;
         wmAspect = watermarkImg.width / watermarkImg.height;
@@ -621,4 +621,4 @@
       // Cancel button stops recorder
       stopRecordBtn.style.display = "inline-block";
       stopRecordBtn.onclick = () => {
-        if (recorder && recorder.state === "recording
+        if (recorder && recorder.state === "r
