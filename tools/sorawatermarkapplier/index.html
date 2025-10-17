@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Video Transformer — Fixed</title>
+    <style>
+      :root {
+        --bg: #071028;
+        --panel: #0b1624;
+        --accent: #2563eb;
+        --muted: #9fb8e3;
+        color-scheme: dark;
+      }
+
+      body {
+        font-family: Inter, system-ui, -apple-system, Arial;
+        padding: 18px;
+        background: var(--bg);
+        color: #e6eef8;
+      }
+
+      .panel {
+        background: var(--panel);
+        padding: 12px;
+        border-radius: 8px;
+        box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6);
+        margin-bottom: 12px;
+      }
+
+      label {
+        display: block;
+        margin: 6px 0 4px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      input[type="file"] {
+        color: #fff;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      button {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      canvas {
+        background: #000;
+        display: block;
+        width: 100%;
+        max-height: 480px;
+        margin-top: 8px;
+        border-radius: 6px;
+      }
+
+      .small {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      input[type="number"] {
+        width: 120px;
+        padding: 6px;
+        border-radius: 6px;
+        border: 1px solid #21324b;
+        background: #071025;
+        color: #e6eef8;
+      }
+
+      .controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>Video Transformer — Teleporting Watermark + Dynamic Noise (Fixed)</h2>
+
+    <div class="panel">
+      <label>1) Upload source video</label>
+      <input id="videoFile" type="file" accept="video/*" />
+      <div class="small">
+        Tip: use a modern Chromium browser. Audio will be preserved where supported.
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>2) Upload watermark image (PNG recommended)</label>
+      <input id="wmFile" type="file" accept="image/*" />
+      <div class="row" style="margin-top: 8px">
+        <div>
+          <label>Watermark width (px)</label>
+          <input id="wmWidth" type="number" min="1" value="120" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <div class="small">
+            Watermark opacity fixed at 55%. Watermark won't exceed video frame.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>3) Noise settings</label>
+      <div class="row">
+        <div style="flex: 1">
+          <label>Noise opacity (%)</label>
+          <input id="noiseRange" type="range" min="0" max="100" value="30" />
+        </div>
+        <div>
+          <label>Noise update interval</label>
+          <div class="small">Fixed at 0.1s</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel controls">
+      <button id="applyBtn">Apply & Preview</button>
+      <button id="downloadBtn" disabled>Download (processed)</button>
+      <button id="stopRecordBtn" disabled>Stop Recording</button>
+      <div class="small" style="margin-left: 8px">
+        Download records the processed canvas from the start of the source video.
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Preview (click canvas to reposition watermark manually)</label>
+      <canvas id="workCanvas"></canvas>
+      <div class="row" style="margin-top: 8px">
+        <div class="small">
+          Teleport interval: 2.7s • Noise update: 0.1s • Click canvas to place
+          watermark
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (async () => {
+        const TELEPORT_INTERVAL = 2700; // ms
+        const NOISE_INTERVAL = 100; // ms
+        const WM_OPACITY = 0.55;
+
+        const videoFileInput = document.getElementById("videoFile");
+        const wmFileInput = document.getElementById("wmFile");
+        const wmWidthInput = document.getElementById("wmWidth");
+        const noiseRange = document.getElementById("noiseRange");
+        const applyBtn = document.getElementById("applyBtn");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const stopRecordBtn = document.getElementById("stopRecordBtn");
+        const canvas = document.getElementById("workCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let srcVideo = document.createElement("video");
+        srcVideo.playsInline = true;
+        srcVideo.crossOrigin = "anonymous";
+        srcVideo.muted = true;
+
+        let watermarkImg = new Image();
+        let watermarkLoaded = false;
+        let videoLoaded = false;
+        let videoFileName = "processed_video";
+
+        let wmWidth = parseInt(wmWidthInput.value, 10) || 120;
+        let wmHeight = 0;
+        let wmX = 0,
+          wmY = 0;
+
+        let teleportTimer = null;
+        let noiseTimer = null;
+        let noiseBitmap = null;
+        let drawing = false;
+        let anim = null;
+
+        let recorder = null;
+        let recordedChunks = [];
+
+        function computeWmHeight() {
+          if (!watermarkLoaded) return;
+          const ratio = watermarkImg.width
+            ? watermarkImg.height / watermarkImg.width
+            : 1;
+          wmHeight = Math.round(wmWidth * ratio);
+          if (wmWidth > canvas.width) {
+            wmWidth = canvas.width;
+            wmWidthInput.value = wmWidth;
+            wmHeight = Math.round(wmWidth * ratio);
+          }
+          if (wmHeight > canvas.height) {
+            const scale = canvas.height / wmHeight;
+            wmWidth = Math.round(wmWidth * scale);
+            wmHeight = Math.round(wmHeight * scale);
+            wmWidthInput.value = wmWidth;
+          }
+        }
+
+        function clampWm() {
+          if (!videoLoaded || !watermarkLoaded) return;
+          wmX = Math.max(0, Math.min(wmX, canvas.width - wmWidth));
+          wmY = Math.max(0, Math.min(wmY, canvas.height - wmHeight));
+        }
+
+        function randomizeWm() {
+          if (!videoLoaded || !watermarkLoaded) return;
+          const maxX = Math.max(0, canvas.width - wmWidth);
+          const maxY = Math.max(0, canvas.height - wmHeight);
+          wmX = Math.round(Math.random() * maxX);
+          wmY = Math.round(Math.random() * maxY);
+        }
+
+        async function generateNoise() {
+          if (!videoLoaded) return;
+          const w = canvas.width;
+          const h = canvas.height;
+          const scale = 0.5;
+          const nw = Math.max(1, Math.floor(w * scale));
+          const nh = Math.max(1, Math.floor(h * scale));
+          const off = document.createElement("canvas");
+          off.width = nw;
+          off.height = nh;
+          const octx = off.getContext("2d");
+          const id = octx.createImageData(nw, nh);
+          const data = id.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const v = Math.floor(Math.random() * 256);
+            data[i] = v;
+            data[i + 1] = v;
+            data[i + 2] = v;
+            data[i + 3] = 255;
+          }
+          octx.putImageData(id, 0, 0);
+          const big = document.createElement("canvas");
+          big.width = w;
+          big.height = h;
+          const bctx = big.getContext("2d");
+          bctx.imageSmoothingEnabled = true;
+          bctx.drawImage(off, 0, 0, w, h);
+          try {
+            noiseBitmap = await createImageBitmap(big);
+          } catch (e) {
+            noiseBitmap = big;
+          }
+        }
+
+        function draw() {
+          if (!drawing) return;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          try {
+            ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+          } catch (e) {}
+
+          if (watermarkLoaded) {
+            ctx.save();
+            ctx.globalAlpha = WM_OPACITY;
+            ctx.drawImage(watermarkImg, wmX, wmY, wmWidth, wmHeight);
+            ctx.restore();
+          }
+
+          const nOpacity = Number(noiseRange.value) / 100;
+          if (nOpacity > 0 && noiseBitmap) {
+            ctx.save();
+            ctx.globalAlpha = nOpacity;
+            ctx.drawImage(noiseBitmap, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+          }
+          anim = requestAnimationFrame(draw);
+        }
+
+        videoFileInput.addEventListener("change", async (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (!f) return;
+          videoFileName = f.name.replace(/\.[^/.]+$/, "");
+          const url = URL.createObjectURL(f);
+          videoLoaded = false;
+          srcVideo.src = url;
+          srcVideo.load();
+          await new Promise((res) => {
+            srcVideo.onloadedmetadata = () => {
+              videoLoaded = true;
+              res();
+            };
+          });
+          canvas.width = srcVideo.videoWidth || 640;
+          canvas.height = srcVideo.videoHeight || 360;
+          if (watermarkLoaded) computeWmHeight();
+        });
+
+        wmFileInput.addEventListener("change", (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (!f) return;
+          const url = URL.createObjectURL(f);
+          watermarkLoaded = false;
+          watermarkImg = new Image();
+          watermarkImg.crossOrigin = "anonymous";
+          watermarkImg.onload = () => {
+            watermarkLoaded = true;
+            if (videoLoaded) {
+              const def = Math.min(
+                Math.round(canvas.width * 0.15),
+                watermarkImg.width
+              );
+              wmWidth = Math.max(1, def);
+              wmWidthInput.value = wmWidth;
+            } else {
+              wmWidth = Math.min(120, watermarkImg.width);
+              wmWidthInput.value = wmWidth;
+            }
+            computeWmHeight();
+            randomizeWm();
+            clampWm();
+            URL.revokeObjectURL(url);
+          };
+          watermarkImg.onerror = () => alert("Failed to load watermark image");
+          watermarkImg.src = url;
+        });
+
+        wmWidthInput.addEventListener("input", () => {
+          const val = parseInt(wmWidthInput.value, 10) || 1;
+          wmWidth = Math.max(1, val);
+          if (videoLoaded && watermarkLoaded) computeWmHeight();
+          clampWm();
+        });
+
+        canvas.addEventListener("click", (e) => {
+          if (!watermarkLoaded || !videoLoaded) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.round(
+            (e.clientX - rect.left) * (canvas.width / rect.width)
+          );
+          const y = Math.round(
+            (e.clientY - rect.top) * (canvas.height / rect.height)
+          );
+          wmX = x - Math.round(wmWidth / 2);
+          wmY = y - Math.round(wmHeight / 2);
+          clampWm();
+        });
+
+        applyBtn.addEventListener("click", async () => {
+          if (!videoFileInput.files[0])
+            return alert("Please upload a source video first");
+          if (!videoLoaded)
+            await new Promise((res) => (srcVideo.onloadedmetadata = res));
+          canvas.width = srcVideo.videoWidth || canvas.width || 640;
+          canvas.height = srcVideo.videoHeight || canvas.height || 360;
+
+          if (watermarkLoaded) computeWmHeight();
+          clampWm();
+
+          if (noiseTimer) clearInterval(noiseTimer);
+          await generateNoise();
+          noiseTimer = setInterval(() => generateNoise(), NOISE_INTERVAL);
+
+          if (teleportTimer) clearInterval(teleportTimer);
+          teleportTimer = setInterval(() => {
+            randomizeWm();
+            clampWm();
+          }, TELEPORT_INTERVAL);
+
+          if (!drawing) {
+            drawing = true;
+            srcVideo.currentTime = 0;
+            try {
+              await srcVideo.play();
+            } catch (e) {}
+            draw();
+          }
+
+          const canvasStream = canvas.captureStream(30);
+          let tracks = [];
+          try {
+            const s = srcVideo.captureStream ? srcVideo.captureStream() : null;
+            if (s) tracks = s.getAudioTracks();
+          } catch (e) {
+            tracks = [];
+          }
+
+          const out = new MediaStream();
+          canvasStream.getVideoTracks().forEach((t) => out.addTrack(t));
+          tracks.forEach((t) => out.addTrack(t));
+
+          let audioPreview = document.getElementById("audioPreview");
+          if (!audioPreview) {
+            audioPreview = document.createElement("video");
+            audioPreview.id = "audioPreview";
+            audioPreview.style.display = "none";
+            document.body.appendChild(audioPreview);
+          }
+          audioPreview.srcObject = out;
+          audioPreview.muted = false;
+          audioPreview.play().catch(() => {});
+          downloadBtn.disabled = false;
+        });
+
+        downloadBtn.addEventListener("click", async () => {
+          if (!videoFileInput.files[0]) return alert("Upload video first");
+          if (!drawing) return alert("Click Apply & Preview first");
+
+          const canvasStream = canvas.captureStream(30);
+          let audioTracks = [];
+          try {
+            const s = srcVideo.captureStream ? srcVideo.captureStream() : null;
+            if (s) audioTracks = s.getAudioTracks();
+          } catch (e) {
+            audioTracks = [];
+          }
+
+          const combined = new MediaStream();
+          canvasStream.getVideoTracks().forEach((t) => combined.addTrack(t));
+          audioTracks.forEach((t) => combined.addTrack(t));
+
+          const candidates = [
+            "video/webm;codecs=vp9,opus",
+            "video/webm;codecs=vp8,opus",
+            "video/webm",
+          ];
+          let mime = "";
+          for (const c of candidates)
+            if (
+              MediaRecorder.isTypeSupported &&
+              MediaRecorder.isTypeSupported(c)
+            ) {
+              mime = c;
+              break;
+            }
+
+          recordedChunks = [];
+          try {
+            recorder = new MediaRecorder(
+              combined,
+              mime ? { mimeType: mime } : undefined
+            );
+          } catch (e) {
+            alert("Recording failed: " + e.message);
+            return;
+          }
+
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size) recordedChunks.push(e.data);
+          };
+          recorder.onstop = () => {
+            const blob = new Blob(recordedChunks, {
+              type: recordedChunks[0]?.type || "video/webm",
+            });
+            const ext = blob.type.includes("webm") ? "webm" : "webm";
+            const outName = `${videoFileName}_applied.${ext}`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = outName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            downloadBtn.disabled = false;
+            stopRecordBtn.disabled = true;
+          };
+
+          try {
+            recorder.start(1000);
+          } catch (e) {
+            alert("Could not start recorder: " + e.message);
+            return;
+          }
+
+          downloadBtn.disabled = true;
+          stopRecordBtn.disabled = false;
+          srcVideo.currentTime = 0;
+          try {
+            await srcVideo.play();
+          } catch (e) {}
+
+          const onEnd = () => {
+            if (recorder && recorder.state === "recording") recorder.stop();
+            srcVideo.removeEventListener("ended", onEnd);
+          };
+          srcVideo.addEventListener("ended", onEnd);
+
+          const maxDur = (srcVideo.duration || 0) + 3;
+          setTimeout(() => {
+            if (recorder && recorder.state === "recording") recorder.stop();
+          }, Math.max(5000, Math.round(maxDur * 1000)));
+        });
+
+        stopRecordBtn.addEventListener("click", () => {
+          if (recorder && recorder.state === "recording") recorder.stop();
+          stopRecordBtn.disabled = true;
+          downloadBtn.disabled = false;
+        });
+
+        window.addEventListener("beforeunload", () => {
+          if (teleportTimer) clearInterval(teleportTimer);
+          if (noiseTimer) clearInterval(noiseTimer);
+          if (anim) cancelAnimationFrame(anim);
+          if (recorder && recorder.state === "recording") recorder.stop();
+        });
+      })();
+    </script>
+  </body>
+</html>
