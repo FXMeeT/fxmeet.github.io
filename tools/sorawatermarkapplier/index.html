@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>AI Watermark Applier - Make realistic videos look AI generated.</title>
+    <title>AI Watermark Applier - Teleporting Watermark + Progress</title>
     <style>
       :root {
         --bg: #071028;
@@ -12,92 +12,23 @@
         --muted: #9fb8e3;
         color-scheme: dark;
       }
-
-      body {
-        font-family: Inter, system-ui, -apple-system, Arial;
-        padding: 18px;
-        background: var(--bg);
-        color: #e6eef8;
-      }
-
-      .panel {
-        background: var(--panel);
-        padding: 12px;
-        border-radius: 8px;
-        box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6);
-        margin-bottom: 12px;
-      }
-
-      label {
-        display: block;
-        margin: 6px 0 4px;
-        font-size: 13px;
-        color: var(--muted);
-      }
-
-      input[type="file"] {
-        color: #fff;
-      }
-
-      input[type="range"] {
-        width: 100%;
-      }
-
-      .row {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-
-      button {
-        background: var(--accent);
-        color: white;
-        border: none;
-        padding: 8px 12px;
-        border-radius: 6px;
-        cursor: pointer;
-      }
-
-      button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      canvas {
-        background: #000;
-        display: block;
-        width: 100%;
-        max-height: 480px;
-        margin-top: 8px;
-        border-radius: 6px;
-      }
-
-      .small {
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      input[type="number"] {
-        width: 100px;
-        padding: 6px;
-        border-radius: 6px;
-        border: 1px solid #21324b;
-        background: #071025;
-        color: #e6eef8;
-      }
-
-      .controls {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
+      body { font-family: Inter, system-ui, -apple-system, Arial; padding: 18px; background: var(--bg); color: #e6eef8; }
+      .panel { background: var(--panel); padding: 12px; border-radius: 8px; box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6); margin-bottom: 12px; }
+      label { display: block; margin: 6px 0 4px; font-size: 13px; color: var(--muted); }
+      input[type="file"] { color: #fff; }
+      input[type="range"] { width: 100%; }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      button { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      canvas { background: #000; display: block; width: 100%; max-height: 480px; margin-top: 8px; border-radius: 6px; }
+      .small { font-size: 12px; color: var(--muted); }
+      input[type="number"] { width: 100px; padding: 6px; border-radius: 6px; border: 1px solid #21324b; background: #071025; color: #e6eef8; }
+      .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     </style>
   </head>
 
   <body>
-    <h2>Video Transformer — Teleporting Watermark + Custom Resizing</h2>
+    <h2>Video Transformer — Teleporting Watermark + Progress</h2>
 
     <!-- VIDEO UPLOAD -->
     <div class="panel">
@@ -122,8 +53,8 @@
 
     <!-- WATERMARK UPLOAD -->
     <div class="panel">
-      <label>2) Upload your watermark image</label>
-      <a href="static/wm.png" download="sora_wm.png">Download Sora Watermark</a>
+      <label>2) Upload watermark image</label>
+      <a href="static/vm.png" download="sora_wm.png">Download Sora Watermark</a>
       <input id="wmFile" type="file" accept="image/*" />
       <div class="row" style="margin-top: 8px">
         <div>
@@ -150,7 +81,7 @@
     <div class="panel">
       <label>3) Noise settings</label>
       <div class="row">
-        <div style="flex: 1">
+        <div style="flex:1">
           <label>Noise opacity (%)</label>
           <input id="noiseRange" type="range" min="0" max="100" value="4" />
         </div>
@@ -166,13 +97,14 @@
       <button id="applyBtn" disabled>Apply & Preview</button>
       <button id="downloadBtn" disabled>Download (processed)</button>
       <button id="stopRecordBtn" style="display:none;">Cancel</button>
-      <div class="small">Upload both video and watermark before applying.</div>
+      <div class="small">Upload both video and watermark before applying. Progress is shown during recording.</div>
     </div>
 
     <!-- PREVIEW -->
     <div class="panel">
-      <label>Preview (click canvas to reposition watermark manually)</label>
+      <label>Preview</label>
       <canvas id="workCanvas"></canvas>
+      <div class="small" style="margin-top: 8px">Teleport interval: 2.7s • Noise update: 0.1s • Click canvas to place watermark</div>
     </div>
 
     <script>
@@ -207,7 +139,7 @@
         let watermarkLoaded = false;
         let videoLoaded = false;
         let videoFileName = "processed_video";
-        let videoAspect = 16 / 9;
+        let videoAspect = 16/9;
         let wmAspect = 1;
         let wmX = 0, wmY = 0;
 
@@ -216,7 +148,7 @@
 
         function updateButtonStates() {
           applyBtn.disabled = !(videoLoaded && watermarkLoaded);
-          downloadBtn.disabled = !(drawing && videoLoaded && watermarkLoaded);
+          downloadBtn.disabled = !drawing;
         }
 
         function randomizeWm() {
@@ -226,104 +158,117 @@
           wmY = Math.round(Math.random() * maxY);
         }
 
+        function clampWm() {
+          wmX = Math.max(0, Math.min(wmX, canvas.width - +wmWidthInput.value));
+          wmY = Math.max(0, Math.min(wmY, canvas.height - +wmHeightInput.value));
+        }
+
         async function generateNoise() {
           const w = canvas.width, h = canvas.height;
           const off = document.createElement("canvas");
-          off.width = w * 0.5;
-          off.height = h * 0.5;
+          off.width = w * 0.5; off.height = h * 0.5;
           const octx = off.getContext("2d");
           const id = octx.createImageData(off.width, off.height);
-          const d = id.data;
-          for (let i = 0; i < d.length; i += 4) {
-            const v = Math.random() * 255;
-            d[i] = d[i + 1] = d[i + 2] = v;
-            d[i + 3] = 255;
+          for (let i = 0; i < id.data.length; i+=4) {
+            const v = Math.random()*255;
+            id.data[i]=id.data[i+1]=id.data[i+2]=v;
+            id.data[i+3]=255;
           }
-          octx.putImageData(id, 0, 0);
+          octx.putImageData(id,0,0);
           const big = document.createElement("canvas");
-          big.width = w; big.height = h;
-          big.getContext("2d").drawImage(off, 0, 0, w, h);
+          big.width=w; big.height=h;
+          big.getContext("2d").drawImage(off,0,0,w,h);
           return await createImageBitmap(big);
         }
 
-        function draw(noise) {
+        async function draw() {
           if (!drawing) return;
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
-          ctx.globalAlpha = wmOpacityInput.value / 100;
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+          ctx.drawImage(srcVideo,0,0,canvas.width,canvas.height);
+          ctx.globalAlpha = wmOpacityInput.value/100;
           ctx.drawImage(watermarkImg, wmX, wmY, +wmWidthInput.value, +wmHeightInput.value);
-          ctx.globalAlpha = noiseRange.value / 100;
-          if (noise) ctx.drawImage(noise, 0, 0, canvas.width, canvas.height);
-          ctx.globalAlpha = 1;
-          anim = requestAnimationFrame(async () => draw(await generateNoise()));
+          ctx.globalAlpha = noiseRange.value/100;
+          if (noiseBitmap) ctx.drawImage(noiseBitmap,0,0,canvas.width,canvas.height);
+          ctx.globalAlpha=1;
+          anim = requestAnimationFrame(draw);
         }
 
-        videoFileInput.addEventListener("change", async (e) => {
-          const f = e.target.files[0]; if (!f) return;
-          videoFileName = f.name.replace(/\.[^/.]+$/, "");
+        let noiseBitmap=null;
+
+        videoFileInput.addEventListener("change", async e => {
+          const f = e.target.files[0]; if(!f) return;
+          videoFileName = f.name.replace(/\.[^/.]+$/,"");
           const url = URL.createObjectURL(f);
-          srcVideo.src = url;
-          await new Promise((r) => (srcVideo.onloadedmetadata = r));
-          videoLoaded = true;
-          videoAspect = srcVideo.videoWidth / srcVideo.videoHeight;
-          videoWidthInput.value = srcVideo.videoWidth;
-          videoHeightInput.value = srcVideo.videoHeight;
-          canvas.width = srcVideo.videoWidth;
-          canvas.height = srcVideo.videoHeight;
+          srcVideo.src=url;
+          await new Promise(r => srcVideo.onloadedmetadata=r);
+          videoLoaded=true;
+          videoAspect=srcVideo.videoWidth/srcVideo.videoHeight;
+          videoWidthInput.value=srcVideo.videoWidth;
+          videoHeightInput.value=srcVideo.videoHeight;
+          canvas.width=srcVideo.videoWidth;
+          canvas.height=srcVideo.videoHeight;
           updateButtonStates();
         });
 
-        wmFileInput.addEventListener("change", (e) => {
-          const f = e.target.files[0]; if (!f) return;
+        wmFileInput.addEventListener("change", e=>{
+          const f=e.target.files[0]; if(!f) return;
           const url = URL.createObjectURL(f);
-          watermarkImg.onload = () => {
-            watermarkLoaded = true;
-            wmAspect = watermarkImg.width / watermarkImg.height;
-            wmWidthInput.value = Math.min(120, Math.round(canvas.width * 0.15));
-            wmHeightInput.value = Math.round(wmWidthInput.value / wmAspect);
+          watermarkImg.onload=()=>{
+            watermarkLoaded=true;
+            wmAspect=watermarkImg.width/watermarkImg.height;
+            wmWidthInput.value=Math.min(120, Math.round(canvas.width*0.15));
+            wmHeightInput.value=Math.round(wmWidthInput.value/wmAspect);
             randomizeWm();
             updateButtonStates();
-            URL.revokeObjectURL(url);
           };
-          watermarkImg.src = url;
+          watermarkImg.src=url;
         });
 
-        applyBtn.addEventListener("click", async () => {
-          if (!videoLoaded || !watermarkLoaded) return alert("Upload both video and watermark first");
+        applyBtn.addEventListener("click", async ()=>{
+          if(!videoLoaded||!watermarkLoaded) return alert("Upload both video and watermark first");
           canvas.width = +videoWidthInput.value;
           canvas.height = +videoHeightInput.value;
-          drawing = true;
-          if (teleportTimer) clearInterval(teleportTimer);
+
+          noiseBitmap = await generateNoise();
+          noiseTimer = setInterval(async()=>{ noiseBitmap=await generateNoise(); }, NOISE_INTERVAL);
           teleportTimer = setInterval(randomizeWm, TELEPORT_INTERVAL);
-          await srcVideo.play();
-          draw(await generateNoise());
-          updateButtonStates();
+
+          drawing=true;
+          if(srcVideo.paused) await srcVideo.play();
+          draw();
+          downloadBtn.disabled=false;
         });
 
-        downloadBtn.addEventListener("click", async () => {
-          if (!drawing) return alert("Click Apply first");
-          srcVideo.currentTime = 0;
+        downloadBtn.addEventListener("click", async ()=>{
+          if(!drawing) return alert("Click Apply first");
+          srcVideo.currentTime=0;
           await srcVideo.play();
 
-          const canvasStream = canvas.captureStream(30);
-          const s = srcVideo.captureStream();
-          s.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
+          const canvasStream=canvas.captureStream(30);
+          let audioTracks=[];
+          try{ const s=srcVideo.captureStream(); audioTracks=s.getAudioTracks(); } catch{}
+          audioTracks.forEach(t=>canvasStream.addTrack(t));
 
-          recordedChunks = [];
-          const recorder = new MediaRecorder(canvasStream);
-          recorder.ondataavailable = (e) => e.data.size && recordedChunks.push(e.data);
-          recorder.onstop = () => {
-            const blob = new Blob(recordedChunks, { type: "video/webm" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${videoFileName}_applied.webm`;
+          recordedChunks=[];
+          recorder = new MediaRecorder(canvasStream);
+          recorder.ondataavailable=e=>{ if(e.data.size) recordedChunks.push(e.data); };
+          recorder.onstop=()=>{
+            const blob=new Blob(recordedChunks,{type:"video/webm"});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement("a");
+            a.href=url;
+            a.download=`${videoFileName}_applied.webm`;
             a.click();
+            stopRecordBtn.style.display="none";
             URL.revokeObjectURL(url);
           };
-          recorder.start();
-          srcVideo.onended = () => recorder.stop();
+          stopRecordBtn.style.display="inline-block";
+          stopRecordBtn.onclick=()=>{ recorder.stop(); stopRecordBtn.style.display="none"; };
+
+          recorder.start(1000);
+          srcVideo.onended=()=>{ recorder.stop(); stopRecordBtn.style.display="none"; };
         });
+
       })();
     </script>
   </body>
