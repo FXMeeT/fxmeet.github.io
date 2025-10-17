@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Video Transformer — Fixed</title>
+    <title>AI Watermark Applier - Make realistic videos look ai generated.</title>
     <style>
       :root {
         --bg: #071028;
@@ -79,7 +79,7 @@
       }
 
       input[type="number"] {
-        width: 120px;
+        width: 100px;
         padding: 6px;
         border-radius: 6px;
         border: 1px solid #21324b;
@@ -93,43 +93,92 @@
         flex-wrap: wrap;
         align-items: center;
       }
+
+      /* Progress panel */
+      #progressPanel {
+        display: none;
+        margin-top: 8px;
+        padding: 10px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.02);
+        font-family: monospace;
+      }
+
+      .progress-line {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .progress-status {
+        margin-top: 6px;
+        font-size: 13px;
+        color: var(--muted);
+      }
     </style>
   </head>
 
   <body>
-    <h2>Video Transformer — Teleporting Watermark + Dynamic Noise (Fixed)</h2>
+    <h2>AI Watermark Applier - Make realistic videos look ai generated.</h2>
 
+    <!-- VIDEO UPLOAD + RESIZE -->
     <div class="panel">
       <label>1) Upload source video</label>
       <input id="videoFile" type="file" accept="video/*" />
-      <div class="small">
-        Tip: use a modern Chromium browser. Audio will be preserved where supported.
-      </div>
-    </div>
-
-    <div class="panel">
-      <label>2) Upload watermark image (PNG recommended)</label>
-      <input id="wmFile" type="file" accept="image/*" />
       <div class="row" style="margin-top: 8px">
         <div>
-          <label>Watermark width (px)</label>
-          <input id="wmWidth" type="number" min="1" value="120" />
+          <label>Video width (px)</label>
+          <input id="videoWidth" type="number" min="1" value="640" />
+        </div>
+        <div>
+          <label>Video height (px)</label>
+          <input id="videoHeight" type="number" min="1" value="360" />
         </div>
         <div>
           <label>&nbsp;</label>
-          <div class="small">
-            Watermark opacity fixed at 55%. Watermark won't exceed video frame.
-          </div>
+          <input id="lockVideoAspect" type="checkbox" checked />
+          <span class="small">Lock aspect ratio</span>
+        </div>
+      </div>
+      <div class="small">
+        Tip: use a modern Chromium browser. Audio will be preserved where
+        supported.
+      </div>
+    </div>
+
+    <!-- WATERMARK UPLOAD + RESIZE -->
+    <div class="panel">
+      <label>2) Resize the Sora watermark</label>
+      <input id="wmFile" type="file" accept="image/*" style="display:none"/>
+      <div class="row" style="margin-top: 8px">
+        <div>
+          <label>Watermark width (px)</label>
+          <input id="wmWidth" type="number" min="1" value="80" />
+        </div>
+        <div>
+          <label>Watermark height (px)</label>
+          <input id="wmHeight" type="number" min="1" value="37" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <input id="lockWmAspect" type="checkbox" checked />
+          <span class="small">Lock aspect ratio</span>
+        </div>
+        <div>
+          <label>Opacity (%)</label>
+          <input id="wmOpacity" type="range" min="0" max="100" value="45" />
         </div>
       </div>
     </div>
 
+    <!-- NOISE -->
     <div class="panel">
       <label>3) Noise settings</label>
       <div class="row">
         <div style="flex: 1">
           <label>Noise opacity (%)</label>
-          <input id="noiseRange" type="range" min="0" max="100" value="30" />
+          <input id="noiseRange" type="range" min="0" max="100" value="4" />
         </div>
         <div>
           <label>Noise update interval</label>
@@ -138,385 +187,438 @@
       </div>
     </div>
 
+    <!-- CONTROLS -->
     <div class="panel controls">
       <button id="applyBtn">Apply & Preview</button>
       <button id="downloadBtn" disabled>Download (processed)</button>
-      <button id="stopRecordBtn" disabled>Stop Recording</button>
+      <button id="stopRecordBtn" style="display:none;">Cancel</button>
       <div class="small" style="margin-left: 8px">
-        Download records the processed canvas from the start of the source video.
+        Download records the processed canvas from the start of the source
+        video.
+      </div>
+
+      <!-- Progress panel placed here -->
+      <div id="progressPanel" class="panel" style="width:100%; margin-left:0;">
+        <div class="progress-line">
+          <div id="progressPercent">Converting... 0.0%</div>
+          <div id="progressBytes">(0.0 MB / 0.0 MB)</div>
+          <div id="progressTime">Est. --:-- remaining</div>
+        </div>
+        <div id="progressStatus" class="progress-status">Waiting to start</div>
       </div>
     </div>
 
+    <!-- PREVIEW -->
     <div class="panel">
       <label>Preview (click canvas to reposition watermark manually)</label>
       <canvas id="workCanvas"></canvas>
-      <div class="row" style="margin-top: 8px">
-        <div class="small">
-          Teleport interval: 2.7s • Noise update: 0.1s • Click canvas to place
-          watermark
-        </div>
+      <div class="small" style="margin-top: 8px">
+        Teleport interval: 2.7s • Noise update: 0.1s • Click canvas to place
+        watermark
       </div>
     </div>
 
-    <script>
-      (async () => {
-        const TELEPORT_INTERVAL = 2700; // ms
-        const NOISE_INTERVAL = 100; // ms
-        const WM_OPACITY = 0.55;
+<script>
+  (async () => {
+    const TELEPORT_INTERVAL = 2700;
+    const NOISE_INTERVAL = 100;
 
-        const videoFileInput = document.getElementById("videoFile");
-        const wmFileInput = document.getElementById("wmFile");
-        const wmWidthInput = document.getElementById("wmWidth");
-        const noiseRange = document.getElementById("noiseRange");
-        const applyBtn = document.getElementById("applyBtn");
-        const downloadBtn = document.getElementById("downloadBtn");
-        const stopRecordBtn = document.getElementById("stopRecordBtn");
-        const canvas = document.getElementById("workCanvas");
-        const ctx = canvas.getContext("2d");
+    const videoFileInput = document.getElementById("videoFile");
+    const videoWidthInput = document.getElementById("videoWidth");
+    const videoHeightInput = document.getElementById("videoHeight");
+    const lockVideoAspect = document.getElementById("lockVideoAspect");
 
-        let srcVideo = document.createElement("video");
-        srcVideo.playsInline = true;
-        srcVideo.crossOrigin = "anonymous";
-        srcVideo.muted = true;
+    const wmFileInput = document.getElementById("wmFile");
+    const wmWidthInput = document.getElementById("wmWidth");
+    const wmHeightInput = document.getElementById("wmHeight");
+    const lockWmAspect = document.getElementById("lockWmAspect");
+    const wmOpacityInput = document.getElementById("wmOpacity");
 
-        let watermarkImg = new Image();
-        let watermarkLoaded = false;
-        let videoLoaded = false;
-        let videoFileName = "processed_video";
+    const noiseRange = document.getElementById("noiseRange");
+    const applyBtn = document.getElementById("applyBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const stopRecordBtn = document.getElementById("stopRecordBtn");
+    const canvas = document.getElementById("workCanvas");
+    const ctx = canvas.getContext("2d");
 
-        let wmWidth = parseInt(wmWidthInput.value, 10) || 120;
-        let wmHeight = 0;
-        let wmX = 0,
-          wmY = 0;
+    // Progress UI elements
+    const progressPanel = document.getElementById("progressPanel");
+    const progressPercent = document.getElementById("progressPercent");
+    const progressBytes = document.getElementById("progressBytes");
+    const progressTime = document.getElementById("progressTime");
+    const progressStatus = document.getElementById("progressStatus");
 
-        let teleportTimer = null;
-        let noiseTimer = null;
-        let noiseBitmap = null;
-        let drawing = false;
-        let anim = null;
+    let srcVideo = document.createElement("video");
+    srcVideo.playsInline = true;
+    srcVideo.crossOrigin = "anonymous";
+    srcVideo.muted = true;
 
-        let recorder = null;
-        let recordedChunks = [];
+    let watermarkImg = new Image();
+    let watermarkLoaded = false;
+    let videoLoaded = false;
+    let videoFileName = "processed_video";
+    let videoAspect = 16 / 9;
+    let wmAspect = 1;
 
-        function computeWmHeight() {
-          if (!watermarkLoaded) return;
-          const ratio = watermarkImg.width
-            ? watermarkImg.height / watermarkImg.width
-            : 1;
-          wmHeight = Math.round(wmWidth * ratio);
-          if (wmWidth > canvas.width) {
-            wmWidth = canvas.width;
-            wmWidthInput.value = wmWidth;
-            wmHeight = Math.round(wmWidth * ratio);
-          }
-          if (wmHeight > canvas.height) {
-            const scale = canvas.height / wmHeight;
-            wmWidth = Math.round(wmWidth * scale);
-            wmHeight = Math.round(wmHeight * scale);
-            wmWidthInput.value = wmWidth;
-          }
+    let wmX = 0,
+      wmY = 0;
+    let noiseBitmap = null;
+    let drawing = false;
+    let anim = null;
+    let teleportTimer = null;
+    let noiseTimer = null;
+    let recorder = null;
+    let recordedChunks = [];
+
+    // Progress tracking variables
+    let sourceFileSize = 0; // bytes (from selected source file)
+    let bytesRecorded = 0; // bytes accumulated from recorder chunks
+    let recordStartTime = 0; // performance.now()
+    let progressIntervalRef = null;
+
+    // --- Load Default Watermark ---
+    function loadDefaultWatermark() {
+      watermarkImg = new Image();
+      watermarkImg.src = "image.png"; // must be in same folder as HTML (optional)
+      watermarkImg.onload = () => {
+        watermarkLoaded = true;
+        wmAspect = watermarkImg.width / watermarkImg.height;
+        wmWidthInput.value = 120;
+        wmHeightInput.value = Math.round(wmWidthInput.value / wmAspect);
+        randomizeWm();
+      };
+      watermarkImg.onerror = () => {
+        console.warn("Default watermark image.png not found.");
+      };
+    }
+    loadDefaultWatermark();
+
+    // --- Helper Functions ---
+    function randomizeWm() {
+      if (!videoLoaded || !watermarkLoaded) return;
+      const maxX = Math.max(0, canvas.width - +wmWidthInput.value);
+      const maxY = Math.max(0, canvas.height - +wmHeightInput.value);
+      wmX = Math.round(Math.random() * maxX);
+      wmY = Math.round(Math.random() * maxY);
+    }
+
+    function clampWm() {
+      wmX = Math.max(0, Math.min(wmX, canvas.width - +wmWidthInput.value));
+      wmY = Math.max(0, Math.min(wmY, canvas.height - +wmHeightInput.value));
+    }
+
+    async function generateNoise() {
+      const w = canvas.width,
+        h = canvas.height;
+      const scale = 0.5;
+      const nw = Math.max(1, Math.floor(w * scale));
+      const nh = Math.max(1, Math.floor(h * scale));
+      const off = document.createElement("canvas");
+      off.width = nw;
+      off.height = nh;
+      const octx = off.getContext("2d");
+      const id = octx.createImageData(nw, nh);
+      const data = id.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const v = Math.floor(Math.random() * 256);
+        data[i] = v;
+        data[i + 1] = v;
+        data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+      octx.putImageData(id, 0, 0);
+      const big = document.createElement("canvas");
+      big.width = w;
+      big.height = h;
+      const bctx = big.getContext("2d");
+      bctx.drawImage(off, 0, 0, w, h);
+      noiseBitmap = await createImageBitmap(big);
+    }
+
+    function draw() {
+      if (!drawing) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+
+      if (watermarkLoaded) {
+        ctx.save();
+        ctx.globalAlpha = wmOpacityInput.value / 100;
+        ctx.drawImage(
+          watermarkImg,
+          wmX,
+          wmY,
+          +wmWidthInput.value,
+          +wmHeightInput.value
+        );
+        ctx.restore();
+      }
+
+      const nOpacity = Number(noiseRange.value) / 100;
+      if (nOpacity > 0 && noiseBitmap) {
+        ctx.save();
+        ctx.globalAlpha = nOpacity;
+        ctx.drawImage(noiseBitmap, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+      anim = requestAnimationFrame(draw);
+    }
+
+    // --- Input Listeners ---
+    videoFileInput.addEventListener("change", async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      videoFileName = f.name.replace(/\.[^/.]+$/, "");
+      sourceFileSize = f.size || 0;
+      const url = URL.createObjectURL(f);
+      videoLoaded = false;
+      srcVideo.src = url;
+      srcVideo.load();
+      await new Promise((res) => (srcVideo.onloadedmetadata = res));
+      videoLoaded = true;
+      videoAspect = srcVideo.videoWidth / srcVideo.videoHeight;
+      videoWidthInput.value = srcVideo.videoWidth;
+      videoHeightInput.value = srcVideo.videoHeight;
+      canvas.width = srcVideo.videoWidth;
+      canvas.height = srcVideo.videoHeight;
+      if (watermarkLoaded) randomizeWm();
+      stopRecordBtn.style.display = "none";
+      // reset progress UI values
+      resetProgressUI();
+    });
+
+    lockVideoAspect.addEventListener("change", () => {
+      videoAspect = srcVideo.videoWidth / srcVideo.videoHeight;
+    });
+
+    videoWidthInput.addEventListener("input", () => {
+      if (lockVideoAspect.checked) {
+        videoHeightInput.value = Math.round(
+          +videoWidthInput.value / videoAspect
+        );
+      }
+    });
+    videoHeightInput.addEventListener("input", () => {
+      if (lockVideoAspect.checked) {
+        videoWidthInput.value = Math.round(
+          +videoHeightInput.value * videoAspect
+        );
+      }
+    });
+
+    wmFileInput.addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      if (!f) {
+        // if user clears input, revert to default watermark
+        loadDefaultWatermark();
+        return;
+      }
+      const url = URL.createObjectURL(f);
+      watermarkImg = new Image();
+      watermarkImg.onload = () => {
+        watermarkLoaded = true;
+        wmAspect = watermarkImg.width / watermarkImg.height;
+        wmWidthInput.value = Math.min(120, Math.round(canvas.width * 0.15));
+        wmHeightInput.value = Math.round(wmWidthInput.value / wmAspect);
+        randomizeWm();
+        clampWm();
+        URL.revokeObjectURL(url);
+      };
+      watermarkImg.src = url;
+    });
+
+    wmWidthInput.addEventListener("input", () => {
+      if (lockWmAspect.checked)
+        wmHeightInput.value = Math.round(+wmWidthInput.value / wmAspect);
+    });
+    wmHeightInput.addEventListener("input", () => {
+      if (lockWmAspect.checked)
+        wmWidthInput.value = Math.round(+wmHeightInput.value * wmAspect);
+    });
+
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x =
+        ((e.clientX - rect.left) / rect.width) * canvas.width -
+        +wmWidthInput.value / 2;
+      const y =
+        ((e.clientY - rect.top) / rect.height) * canvas.height -
+        +wmHeightInput.value / 2;
+      wmX = Math.round(x);
+      wmY = Math.round(y);
+      clampWm();
+    });
+
+    // --- Apply & Preview ---
+    applyBtn.addEventListener("click", async () => {
+      if (!videoLoaded) return alert("Upload video first");
+
+      canvas.width = +videoWidthInput.value;
+      canvas.height = +videoHeightInput.value;
+
+      if (noiseTimer) clearInterval(noiseTimer);
+      await generateNoise();
+      noiseTimer = setInterval(generateNoise, NOISE_INTERVAL);
+
+      if (teleportTimer) clearInterval(teleportTimer);
+      teleportTimer = setInterval(randomizeWm, TELEPORT_INTERVAL);
+
+      if (!drawing) {
+        drawing = true;
+        if (srcVideo.paused) await srcVideo.play();
+        draw();
+      }
+      downloadBtn.disabled = false;
+    });
+
+    // --- Progress UI helpers ---
+    function humanBytes(bytes) {
+      if (!bytes && bytes !== 0) return "--";
+      const units = ["B", "KB", "MB", "GB"];
+      let i = 0;
+      let b = bytes;
+      while (b >= 1024 && i < units.length - 1) {
+        b /= 1024;
+        i++;
+      }
+      return `${b.toFixed(1)} ${units[i]}`;
+    }
+    function formatTimeSeconds(s) {
+      if (s === null || s === Infinity || isNaN(s)) return "--:--";
+      const sec = Math.max(0, Math.round(s));
+      const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+      const ss = String(sec % 60).padStart(2, "0");
+      return `${mm}:${ss}`;
+    }
+    function resetProgressUI() {
+      progressPanel.style.display = "none";
+      progressPercent.textContent = "Converting... 0.0%";
+      progressBytes.textContent = `(0.0 MB / ${humanBytes(sourceFileSize)})`;
+      progressTime.textContent = "Est. --:-- remaining";
+      progressStatus.textContent = "Waiting to start";
+      bytesRecorded = 0;
+      recordStartTime = 0;
+      if (progressIntervalRef) {
+        clearInterval(progressIntervalRef);
+        progressIntervalRef = null;
+      }
+    }
+
+    function updateProgressUI() {
+      const total = sourceFileSize || 0;
+      const recorded = bytesRecorded || 0;
+      const pct = total > 0 ? Math.min(100, (recorded / total) * 100) : null;
+      // elapsed seconds
+      const elapsed = recordStartTime ? (performance.now() - recordStartTime) / 1000 : 0;
+      const rate = elapsed > 0 ? recorded / elapsed : 0; // bytes/sec
+      const remainingBytes = total > 0 ? Math.max(0, total - recorded) : null;
+      const estSec = rate > 0 && remainingBytes !== null ? remainingBytes / rate : null;
+
+      // Update text
+      progressPercent.textContent = total > 0
+        ? `Converting... ${pct.toFixed(1)}%`
+        : `Converting... ${humanBytes(recorded)} recorded`;
+
+      progressBytes.textContent = total > 0
+        ? `(${humanBytes(recorded)} / ${humanBytes(total)})`
+        : `(${humanBytes(recorded)} / --)`;
+
+      progressTime.textContent = estSec !== null ? `Est. ${formatTimeSeconds(estSec)} remaining` : "Est. --:-- remaining";
+
+      // status line: show rate if available
+      if (rate > 0) {
+        progressStatus.textContent = `Recording — ${humanBytes(Math.round(rate))}/s · elapsed ${formatTimeSeconds(Math.round(elapsed))}`;
+      } else {
+        progressStatus.textContent = `Recording — preparing...`;
+      }
+    }
+
+    // --- Download + Record with live progress ---
+    downloadBtn.addEventListener("click", async () => {
+      if (!drawing) return alert("Click Apply first");
+      srcVideo.currentTime = 0;
+      await srcVideo.play();
+
+      const canvasStream = canvas.captureStream(30);
+      let audioTracks = [];
+      try {
+        const s = srcVideo.captureStream();
+        audioTracks = s.getAudioTracks();
+      } catch (err) {
+        // some browsers don't permit captureStream audio
+      }
+      const combined = new MediaStream();
+      canvasStream.getVideoTracks().forEach((t) => combined.addTrack(t));
+      audioTracks.forEach((t) => combined.addTrack(t));
+
+      recordedChunks = [];
+      bytesRecorded = 0;
+      // use global recorder variable so Cancel can access it
+      try {
+        recorder = new MediaRecorder(combined);
+      } catch (err) {
+        alert("MediaRecorder not supported or failed to start.");
+        return;
+      }
+
+      // show progress panel
+      progressPanel.style.display = "block";
+      progressStatus.textContent = "Starting conversion...";
+      progressPercent.textContent = "Converting... 0.0%";
+      progressBytes.textContent = `(0.0 MB / ${humanBytes(sourceFileSize)})`;
+      progressTime.textContent = "Est. --:-- remaining";
+
+      // track start time
+      recordStartTime = performance.now();
+      bytesRecorded = 0;
+
+      // update UI interval (keeps UI responsive)
+      if (progressIntervalRef) clearInterval(progressIntervalRef);
+      progressIntervalRef = setInterval(updateProgressUI, 250);
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size) {
+          recordedChunks.push(e.data);
+          bytesRecorded += e.data.size;
+          // immediate UI update
+          updateProgressUI();
+        }
+      };
+
+      recorder.onstop = () => {
+        // stop UI updater
+        if (progressIntervalRef) {
+          clearInterval(progressIntervalRef);
+          progressIntervalRef = null;
         }
 
-        function clampWm() {
-          if (!videoLoaded || !watermarkLoaded) return;
-          wmX = Math.max(0, Math.min(wmX, canvas.width - wmWidth));
-          wmY = Math.max(0, Math.min(wmY, canvas.height - wmHeight));
-        }
+        // mark complete in UI
+        progressPercent.textContent = "Conversion complete — Downloading…";
+        progressStatus.textContent = "Finalizing file...";
+        progressTime.textContent = "Est. 00:00 remaining";
 
-        function randomizeWm() {
-          if (!videoLoaded || !watermarkLoaded) return;
-          const maxX = Math.max(0, canvas.width - wmWidth);
-          const maxY = Math.max(0, canvas.height - wmHeight);
-          wmX = Math.round(Math.random() * maxX);
-          wmY = Math.round(Math.random() * maxY);
-        }
+        // assemble blob and trigger download
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${videoFileName}_applied.webm`;
+        a.click();
 
-        async function generateNoise() {
-          if (!videoLoaded) return;
-          const w = canvas.width;
-          const h = canvas.height;
-          const scale = 0.5;
-          const nw = Math.max(1, Math.floor(w * scale));
-          const nh = Math.max(1, Math.floor(h * scale));
-          const off = document.createElement("canvas");
-          off.width = nw;
-          off.height = nh;
-          const octx = off.getContext("2d");
-          const id = octx.createImageData(nw, nh);
-          const data = id.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const v = Math.floor(Math.random() * 256);
-            data[i] = v;
-            data[i + 1] = v;
-            data[i + 2] = v;
-            data[i + 3] = 255;
-          }
-          octx.putImageData(id, 0, 0);
-          const big = document.createElement("canvas");
-          big.width = w;
-          big.height = h;
-          const bctx = big.getContext("2d");
-          bctx.imageSmoothingEnabled = true;
-          bctx.drawImage(off, 0, 0, w, h);
-          try {
-            noiseBitmap = await createImageBitmap(big);
-          } catch (e) {
-            noiseBitmap = big;
-          }
-        }
-
-        function draw() {
-          if (!drawing) return;
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          try {
-            ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
-          } catch (e) {}
-
-          if (watermarkLoaded) {
-            ctx.save();
-            ctx.globalAlpha = WM_OPACITY;
-            ctx.drawImage(watermarkImg, wmX, wmY, wmWidth, wmHeight);
-            ctx.restore();
-          }
-
-          const nOpacity = Number(noiseRange.value) / 100;
-          if (nOpacity > 0 && noiseBitmap) {
-            ctx.save();
-            ctx.globalAlpha = nOpacity;
-            ctx.drawImage(noiseBitmap, 0, 0, canvas.width, canvas.height);
-            ctx.restore();
-          }
-          anim = requestAnimationFrame(draw);
-        }
-
-        videoFileInput.addEventListener("change", async (e) => {
-          const f = e.target.files && e.target.files[0];
-          if (!f) return;
-          videoFileName = f.name.replace(/\.[^/.]+$/, "");
-          const url = URL.createObjectURL(f);
-          videoLoaded = false;
-          srcVideo.src = url;
-          srcVideo.load();
-          await new Promise((res) => {
-            srcVideo.onloadedmetadata = () => {
-              videoLoaded = true;
-              res();
-            };
-          });
-          canvas.width = srcVideo.videoWidth || 640;
-          canvas.height = srcVideo.videoHeight || 360;
-          if (watermarkLoaded) computeWmHeight();
-        });
-
-        wmFileInput.addEventListener("change", (e) => {
-          const f = e.target.files && e.target.files[0];
-          if (!f) return;
-          const url = URL.createObjectURL(f);
-          watermarkLoaded = false;
-          watermarkImg = new Image();
-          watermarkImg.crossOrigin = "anonymous";
-          watermarkImg.onload = () => {
-            watermarkLoaded = true;
-            if (videoLoaded) {
-              const def = Math.min(
-                Math.round(canvas.width * 0.15),
-                watermarkImg.width
-              );
-              wmWidth = Math.max(1, def);
-              wmWidthInput.value = wmWidth;
-            } else {
-              wmWidth = Math.min(120, watermarkImg.width);
-              wmWidthInput.value = wmWidth;
-            }
-            computeWmHeight();
-            randomizeWm();
-            clampWm();
-            URL.revokeObjectURL(url);
-          };
-          watermarkImg.onerror = () => alert("Failed to load watermark image");
-          watermarkImg.src = url;
-        });
-
-        wmWidthInput.addEventListener("input", () => {
-          const val = parseInt(wmWidthInput.value, 10) || 1;
-          wmWidth = Math.max(1, val);
-          if (videoLoaded && watermarkLoaded) computeWmHeight();
-          clampWm();
-        });
-
-        canvas.addEventListener("click", (e) => {
-          if (!watermarkLoaded || !videoLoaded) return;
-          const rect = canvas.getBoundingClientRect();
-          const x = Math.round(
-            (e.clientX - rect.left) * (canvas.width / rect.width)
-          );
-          const y = Math.round(
-            (e.clientY - rect.top) * (canvas.height / rect.height)
-          );
-          wmX = x - Math.round(wmWidth / 2);
-          wmY = y - Math.round(wmHeight / 2);
-          clampWm();
-        });
-
-        applyBtn.addEventListener("click", async () => {
-          if (!videoFileInput.files[0])
-            return alert("Please upload a source video first");
-          if (!videoLoaded)
-            await new Promise((res) => (srcVideo.onloadedmetadata = res));
-          canvas.width = srcVideo.videoWidth || canvas.width || 640;
-          canvas.height = srcVideo.videoHeight || canvas.height || 360;
-
-          if (watermarkLoaded) computeWmHeight();
-          clampWm();
-
-          if (noiseTimer) clearInterval(noiseTimer);
-          await generateNoise();
-          noiseTimer = setInterval(() => generateNoise(), NOISE_INTERVAL);
-
-          if (teleportTimer) clearInterval(teleportTimer);
-          teleportTimer = setInterval(() => {
-            randomizeWm();
-            clampWm();
-          }, TELEPORT_INTERVAL);
-
-          if (!drawing) {
-            drawing = true;
-            srcVideo.currentTime = 0;
-            try {
-              await srcVideo.play();
-            } catch (e) {}
-            draw();
-          }
-
-          const canvasStream = canvas.captureStream(30);
-          let tracks = [];
-          try {
-            const s = srcVideo.captureStream ? srcVideo.captureStream() : null;
-            if (s) tracks = s.getAudioTracks();
-          } catch (e) {
-            tracks = [];
-          }
-
-          const out = new MediaStream();
-          canvasStream.getVideoTracks().forEach((t) => out.addTrack(t));
-          tracks.forEach((t) => out.addTrack(t));
-
-          let audioPreview = document.getElementById("audioPreview");
-          if (!audioPreview) {
-            audioPreview = document.createElement("video");
-            audioPreview.id = "audioPreview";
-            audioPreview.style.display = "none";
-            document.body.appendChild(audioPreview);
-          }
-          audioPreview.srcObject = out;
-          audioPreview.muted = false;
-          audioPreview.play().catch(() => {});
-          downloadBtn.disabled = false;
-        });
-
-        downloadBtn.addEventListener("click", async () => {
-          if (!videoFileInput.files[0]) return alert("Upload video first");
-          if (!drawing) return alert("Click Apply & Preview first");
-
-          const canvasStream = canvas.captureStream(30);
-          let audioTracks = [];
-          try {
-            const s = srcVideo.captureStream ? srcVideo.captureStream() : null;
-            if (s) audioTracks = s.getAudioTracks();
-          } catch (e) {
-            audioTracks = [];
-          }
-
-          const combined = new MediaStream();
-          canvasStream.getVideoTracks().forEach((t) => combined.addTrack(t));
-          audioTracks.forEach((t) => combined.addTrack(t));
-
-          const candidates = [
-            "video/webm;codecs=vp9,opus",
-            "video/webm;codecs=vp8,opus",
-            "video/webm",
-          ];
-          let mime = "";
-          for (const c of candidates)
-            if (
-              MediaRecorder.isTypeSupported &&
-              MediaRecorder.isTypeSupported(c)
-            ) {
-              mime = c;
-              break;
-            }
-
-          recordedChunks = [];
-          try {
-            recorder = new MediaRecorder(
-              combined,
-              mime ? { mimeType: mime } : undefined
-            );
-          } catch (e) {
-            alert("Recording failed: " + e.message);
-            return;
-          }
-
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size) recordedChunks.push(e.data);
-          };
-          recorder.onstop = () => {
-            const blob = new Blob(recordedChunks, {
-              type: recordedChunks[0]?.type || "video/webm",
-            });
-            const ext = blob.type.includes("webm") ? "webm" : "webm";
-            const outName = `${videoFileName}_applied.${ext}`;
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = outName;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 10000);
-            downloadBtn.disabled = false;
-            stopRecordBtn.disabled = true;
-          };
-
-          try {
-            recorder.start(1000);
-          } catch (e) {
-            alert("Could not start recorder: " + e.message);
-            return;
-          }
-
-          downloadBtn.disabled = true;
-          stopRecordBtn.disabled = false;
-          srcVideo.currentTime = 0;
-          try {
-            await srcVideo.play();
-          } catch (e) {}
-
-          const onEnd = () => {
-            if (recorder && recorder.state === "recording") recorder.stop();
-            srcVideo.removeEventListener("ended", onEnd);
-          };
-          srcVideo.addEventListener("ended", onEnd);
-
-          const maxDur = (srcVideo.duration || 0) + 3;
+        // clean up after a short delay so user sees "complete"
+        setTimeout(() => {
+          progressStatus.textContent = "Done";
           setTimeout(() => {
-            if (recorder && recorder.state === "recording") recorder.stop();
-          }, Math.max(5000, Math.round(maxDur * 1000)));
-        });
+            progressPanel.style.display = "none";
+            progressStatus.textContent = "Waiting to start";
+          }, 700);
+        }, 700);
 
-        stopRecordBtn.addEventListener("click", () => {
-          if (recorder && recorder.state === "recording") recorder.stop();
-          stopRecordBtn.disabled = true;
-          downloadBtn.disabled = false;
-        });
+        stopRecordBtn.style.display = "none";
+        // revoke url later
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      };
 
-        window.addEventListener("beforeunload", () => {
-          if (teleportTimer) clearInterval(teleportTimer);
-          if (noiseTimer) clearInterval(noiseTimer);
-          if (anim) cancelAnimationFrame(anim);
-          if (recorder && recorder.state === "recording") recorder.stop();
-        });
-      })();
-    </script>
-  </body>
-</html>
+      // Cancel button stops recorder
+      stopRecordBtn.style.display = "inline-block";
+      stopRecordBtn.onclick = () => {
+        if (recorder && recorder.state === "recor
