@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISS Tracker</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #0b0c10;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      height: 70vh;
+      width: 100%;
+    }
+    .info {
+      padding: 1em;
+      font-size: 1.1em;
+    }
+    span {
+      font-weight: bold;
+      color: #39ff14;
+    }
+  </style>
+</head>
+<body>
+  <h2>🛰️ ISS Tracker Live</h2>
+  <div id="map"></div>
+  <div class="info">
+    <div>Latitude (DDMS): <span id="lat"></span></div>
+    <div>Longitude (DDMS): <span id="lon"></span></div>
+    <div>Timestamp: <span id="time"></span></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map("map").setView([0, 0], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 8,
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    const issIcon = L.icon({
+      iconUrl:
+        "https://upload.wikimedia.org/wikipedia/commons/d/d0/International_Space_Station.svg",
+      iconSize: [50, 50],
+    });
+
+    const marker = L.marker([0, 0], { icon: issIcon }).addTo(map);
+
+    // Convert decimal degrees to DD°MM'SS"
+    function toDDMS(deg, isLat = false) {
+      const absolute = Math.abs(deg);
+      const d = Math.floor(absolute);
+      const m = Math.floor((absolute - d) * 60);
+      const s = ((absolute - d - m / 60) * 3600).toFixed(2);
+      const dir = isLat ? (deg >= 0 ? "N" : "S") : deg >= 0 ? "E" : "W";
+      return `${d}°${m}'${s}"${dir}`;
+    }
+
+    // Calculate GMT offset based on longitude
+    function getGMTOffset(longitude) {
+      return Math.round(longitude / 15);
+    }
+
+    async function updateISS() {
+      try {
+        const res = await fetch("http://api.open-notify.org/iss-now.json");
+        const data = await res.json();
+
+        const lat = parseFloat(data.iss_position.latitude);
+        const lon = parseFloat(data.iss_position.longitude);
+        const timestamp = data.timestamp;
+
+        marker.setLatLng([lat, lon]);
+        map.setView([lat, lon], map.getZoom());
+
+        document.getElementById("lat").textContent = toDDMS(lat, true);
+        document.getElementById("lon").textContent = toDDMS(lon, false);
+
+        const gmtOffset = getGMTOffset(lon);
+        const utc = new Date(timestamp * 1000);
+        const localMillis = utc.getTime() + gmtOffset * 3600 * 1000;
+        const adjusted = new Date(localMillis);
+
+        const hours = adjusted.getUTCHours();
+        const minutes = adjusted.getUTCMinutes().toString().padStart(2, "0");
+        const seconds = adjusted.getUTCSeconds().toString().padStart(2, "0");
+        const ampm = hours >= 12 ? "PM" : "AM";
+        const displayHour = hours % 12 || 12;
+
+        const day = adjusted.getUTCDate().toString().padStart(2, "0");
+        const month = (adjusted.getUTCMonth() + 1).toString().padStart(2, "0");
+        const year = adjusted.getUTCFullYear();
+
+        document.getElementById("time").textContent = 
+          `${displayHour}:${minutes}:${seconds}${ampm} UTC${gmtOffset >= 0 ? "+" : ""}${gmtOffset} (${day}/${month}/${year})`;
+
+      } catch (err) {
+        console.error("Error fetching ISS data:", err);
+      }
+    }
+
+    updateISS();
+    setInterval(updateISS, 1000);
+  </script>
+</body>
+</html>
