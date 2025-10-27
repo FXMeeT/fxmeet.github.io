@@ -1,0 +1,51 @@
+<!-- save as iss.html and open in a browser, e.g. https://yoursite/iss.html?d=la -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ISS API proxy</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+</head>
+<body style="font-family:system-ui,Segoe UI,Roboto,-apple-system,Arial,sans-serif;padding:20px;">
+  <pre id="out">Loading…</pre>
+
+<script>
+(async function(){
+  try {
+    const params = new URLSearchParams(location.search);
+    const d = (params.get('d') || 'la').toLowerCase(); // ts, la, lo
+
+    // validate
+    if (!['ts','la','lo'].includes(d)) {
+      document.getElementById('out').textContent = 'Invalid param. Use ?d=ts | ?d=la | ?d=lo';
+      return;
+    }
+
+    const resp = await fetch('http://api.open-notify.org/iss-now.json', {cache: 'no-store'});
+    if (!resp.ok) throw new Error('open-notify fetch failed: ' + resp.status);
+
+    const data = await resp.json();
+    // example shape: {"timestamp":1761569134,"iss_position":{"latitude":"-37.5799","longitude":"1.2799"},"message":"success"}
+
+    let result;
+    if (d === 'ts') result = String(data.timestamp ?? '');
+    if (d === 'la') result = String((data.iss_position && data.iss_position.latitude) ?? '');
+    if (d === 'lo') result = String((data.iss_position && data.iss_position.longitude) ?? '');
+
+    // Replace page content with just the raw value for neatness
+    document.body.innerHTML = ''; // remove everything
+    const pre = document.createElement('pre');
+    pre.style.fontSize = '16px';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.textContent = result;
+    document.body.appendChild(pre);
+
+    // also set Content-Type hint for browsers (doesn't affect network response headers)
+    document.title = result;
+  } catch (err) {
+    document.getElementById('out').textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+  }
+})();
+</script>
+</body>
+</html>
