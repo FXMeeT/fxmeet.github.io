@@ -105,8 +105,8 @@ const STORE_CHANNEL_BUTTONS = 'ChannelButtons';
 // the XMLHttpRequest response. While many commands finish fast,
 // some of the command sequences - such as Wide display command - need a
 // long delay, 500ms seems to work, 300ms causes Up Up ... keys to be skipped.
-const WAIT_AFTER_COMMAND = 0.01; // ORIGINAL 600: milliseconds to wait after sending a code
-const STATUS_MESSAGE_TIME = 0; // ORIGINAL 50: after commands, show message for this long
+const WAIT_AFTER_COMMAND = 600; // ORIGINAL 600: milliseconds to wait after sending a code
+const STATUS_MESSAGE_TIME = 50; // ORIGINAL 50: after commands, show message for this long
 const ERROR_MESSAGE_TIME = 2100; // after error, show message for this long
 
 // --------------------------------------------------------------------------------
