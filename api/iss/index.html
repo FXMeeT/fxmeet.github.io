@@ -9,43 +9,50 @@
   <pre id="out">Loading…</pre>
 
 <script>
-(function(){
+(async function(){
+  const out = document.getElementById('out');
   const params = new URLSearchParams(location.search);
   const d = (params.get('d') || 'la').toLowerCase(); // ts, la, lo
 
   if (!['ts','la','lo'].includes(d)) {
-    document.getElementById('out').textContent = 'Invalid param. Use ?d=ts | ?d=la | ?d=lo';
+    out.textContent = 'Invalid param. Use ?d=ts | ?d=la | ?d=lo';
     return;
   }
 
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', 'htthttps://api.allorigins.win/raw?url=' + encodeURIComponent('http://api.open-notify.org/iss-now.json', true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === 4) {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          let result = '';
-          if (d === 'ts') result = String(data.timestamp ?? '');
-          if (d === 'la') result = String((data.iss_position && data.iss_position.latitude) ?? '');
-          if (d === 'lo') result = String((data.iss_position && data.iss_position.longitude) ?? '');
+  // Step 1: Request access key each reload
+  const accessUrl = 'https://cors-anywhere.herokuapp.com/corsdemo?accessRequest=07153f7d4ddee3c9f4aba6d6f12783ce7c88292e9b79148b0c4b929271c0ce22';
+  try {
+    await fetch(accessUrl, { mode: 'cors' });
+  } catch (e) {
+    out.textContent = 'Failed to get CORS access: ' + e;
+    return;
+  }
 
-          document.body.innerHTML = ''; // clear everything
-          const pre = document.createElement('pre');
-          pre.style.fontSize = '16px';
-          pre.style.whiteSpace = 'pre-wrap';
-          pre.textContent = result;
-          document.body.appendChild(pre);
-          document.title = result;
-        } catch (err) {
-          document.getElementById('out').textContent = 'Error parsing JSON: ' + err;
-        }
-      } else {
-        document.getElementById('out').textContent = 'HTTP error: ' + xhr.status;
-      }
-    }
-  };
-  xhr.send();
+  // Step 2: Fetch ISS data using CORS Anywhere proxy
+  const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+  const targetUrl = 'http://api.open-notify.org/iss-now.json';
+  const fullUrl = corsProxy + targetUrl;
+
+  try {
+    const res = await fetch(fullUrl);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    let result = '';
+    if (d === 'ts') result = String(data.timestamp ?? '');
+    if (d === 'la') result = String(data.iss_position?.latitude ?? '');
+    if (d === 'lo') result = String(data.iss_position?.longitude ?? '');
+
+    document.body.innerHTML = '';
+    const pre = document.createElement('pre');
+    pre.style.fontSize = '16px';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.textContent = result;
+    document.body.appendChild(pre);
+    document.title = result;
+  } catch (err) {
+    out.textContent = 'Error fetching ISS data: ' + err;
+  }
 })();
 </script>
 </body>
