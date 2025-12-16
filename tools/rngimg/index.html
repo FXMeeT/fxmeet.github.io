@@ -26,7 +26,7 @@
 function getParams() {
     const params = new URLSearchParams(location.search);
     return {
-        res: params.get("res") || "128x128",
+        res: params.get("res") || "1920x1080",
         seed: params.get("seed") || null,
         type: (params.get("t") || "c").toLowerCase()
     };
@@ -57,9 +57,9 @@ function randomPixel(rngFunc, type) {
 
     if (isColor) {
         return [
-            Math.floor(rngFunc() * 256), 
-            Math.floor(rngFunc() * 256), 
-            Math.floor(rngFunc() * 256), 
+            Math.floor(rngFunc() * 256),
+            Math.floor(rngFunc() * 256),
+            Math.floor(rngFunc() * 256),
             255
         ];
     } else {
@@ -73,7 +73,7 @@ function generateImageElement() {
     const { res, seed, type } = getParams();
     const [width, height] = res.split("x").map(Number);
 
-    // Create an offscreen canvas
+    // Offscreen canvas
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -92,19 +92,19 @@ function generateImageElement() {
 
     ctx.putImageData(imgData, 0, 0);
 
-    // Convert canvas to blob and create an <img>
+    // Convert to blob and create <img>
     canvas.toBlob(blob => {
         const url = URL.createObjectURL(blob);
         const img = document.createElement("img");
         img.src = url;
         document.body.appendChild(img);
 
-        // Optionally revoke after some time
+        // Revoke after 60s to free memory
         setTimeout(() => URL.revokeObjectURL(url), 60000);
     }, "image/png");
 }
 
-// Generate immediately
+// Generate image on page load
 generateImageElement();
 </script>
 </body>
