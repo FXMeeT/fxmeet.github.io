@@ -1,0 +1,16 @@
+<script>
+// Parse length parameter
+const params = new URLSearchParams(location.search);
+const l = parseInt(params.get("l")) || 8;
+
+// Generate random digits
+let result = "";
+while (result.length < l) {
+    const arr = new Uint8Array(l);
+    crypto.getRandomValues(arr);
+    result += Array.from(arr).map(n => (n % 10)).join("");
+}
+
+// Output as JSON
+document.body.textContent = JSON.stringify({ code: result.slice(0, l) });
+</script>
