@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <title>Random Image Generator</title>
 <style>
-  html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
-  canvas { display: block; }
+  body { margin: 0; background: black; display: flex; align-items: center; justify-content: center; height: 100vh; }
+  canvas { display: none; } /* canvas only used for generating blob */
 </style>
 </head>
 <body>
@@ -15,7 +15,6 @@
 function getParams() {
     const params = new URLSearchParams(location.search);
     return {
-        res: params.get("res") || "128x128",
         seed: params.get("seed") || null,
         type: (params.get("t") || "c").toLowerCase()
     };
@@ -58,9 +57,11 @@ function randomPixel(rngFunc, type) {
 }
 
 // ===== Main =====
-function generateImage() {
-    const { res, seed, type } = getParams();
-    const [width, height] = res.split("x").map(Number);
+async function generateAndRedirect() {
+    const { seed, type } = getParams();
+    const width = 1920;
+    const height = 1080;
+
     const canvas = document.getElementById("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -78,9 +79,19 @@ function generateImage() {
     }
 
     ctx.putImageData(imgData, 0, 0);
+
+    // Convert canvas to Blob and redirect
+    canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        // Redirect to blob URL
+        window.location.href = url;
+
+        // Optionally revoke after some delay to allow display
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }, "image/png");
 }
 
-generateImage();
+generateAndRedirect();
 </script>
 </body>
 </html>
