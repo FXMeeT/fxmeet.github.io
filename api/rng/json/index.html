@@ -1,25 +1,16 @@
-<!DOCTYPE html>
-<html>
-<body>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
     const params = new URLSearchParams(location.search);
     const l = parseInt(params.get("l")) || 8;
 
     let result = "";
-    while (result.length < l - 1) {
-        const arr = new Uint8Array(l - 1);
+    while (result.length < l) {
+        const arr = new Uint8Array(l);
         crypto.getRandomValues(arr);
         result += Array.from(arr).map(n => (n % 10)).join("");
     }
 
-    // Last digit even
-    const lastDigit = [0,2,4,6,8][Math.floor(Math.random() * 5)];
-    result += lastDigit;
-
-    // Output JSON
-    document.body.textContent = JSON.stringify({ code: result });
+    // Output as JSON
+    document.body.textContent = JSON.stringify({ code: result.slice(0, l) });
 });
 </script>
-</body>
-</html>
