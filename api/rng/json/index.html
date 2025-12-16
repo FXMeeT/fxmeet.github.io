@@ -1,16 +1,25 @@
+<!DOCTYPE html>
+<html>
+<body>
 <script>
-// Parse length parameter
-const params = new URLSearchParams(location.search);
-const l = parseInt(params.get("l")) || 8;
+document.addEventListener("DOMContentLoaded", () => {
+    const params = new URLSearchParams(location.search);
+    const l = parseInt(params.get("l")) || 8;
 
-// Generate random digits
-let result = "";
-while (result.length < l) {
-    const arr = new Uint8Array(l);
-    crypto.getRandomValues(arr);
-    result += Array.from(arr).map(n => (n % 10)).join("");
-}
+    let result = "";
+    while (result.length < l - 1) {
+        const arr = new Uint8Array(l - 1);
+        crypto.getRandomValues(arr);
+        result += Array.from(arr).map(n => (n % 10)).join("");
+    }
 
-// Output as JSON
-document.body.textContent = JSON.stringify({ code: result.slice(0, l) });
+    // Last digit even
+    const lastDigit = [0,2,4,6,8][Math.floor(Math.random() * 5)];
+    result += lastDigit;
+
+    // Output JSON
+    document.body.textContent = JSON.stringify({ code: result });
+});
 </script>
+</body>
+</html>
