@@ -2,24 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Random Image Generator</title>
 <style>
-  body { display: flex; flex-direction: column; align-items: center; font-family: sans-serif; margin: 20px; }
-  canvas { border: 1px solid #000; margin-top: 20px; }
+  html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+  canvas { display: block; }
 </style>
 </head>
 <body>
-<h1>Random Image Generator</h1>
 <canvas id="canvas"></canvas>
-
 <script>
 // ===== Helpers =====
 function getParams() {
     const params = new URLSearchParams(location.search);
     return {
         res: params.get("res") || "128x128",
-        seed: params.get("seed") || null
+        seed: params.get("seed") || null,
+        type: (params.get("t") || "c").toLowerCase()
     };
 }
 
@@ -39,19 +37,29 @@ function seededRandom(seed) {
     }
 }
 
-// Generate random color pixel
-function randomPixel(rngFunc) {
-    return [
-        Math.floor(rngFunc() * 256), // R
-        Math.floor(rngFunc() * 256), // G
-        Math.floor(rngFunc() * 256), // B
-        255 // A
-    ];
+// Generate random pixel
+function randomPixel(rngFunc, type) {
+    let isColor = false;
+    if (type === "c") isColor = true;
+    else if (type === "b") isColor = false;
+    else if (type === "cb" || type === "bc") isColor = Math.random() < 0.5;
+
+    if (isColor) {
+        return [
+            Math.floor(rngFunc() * 256), 
+            Math.floor(rngFunc() * 256), 
+            Math.floor(rngFunc() * 256), 
+            255
+        ];
+    } else {
+        const gray = Math.floor(rngFunc() * 256);
+        return [gray, gray, gray, 255];
+    }
 }
 
 // ===== Main =====
 function generateImage() {
-    const { res, seed } = getParams();
+    const { res, seed, type } = getParams();
     const [width, height] = res.split("x").map(Number);
     const canvas = document.getElementById("canvas");
     canvas.width = width;
@@ -62,7 +70,7 @@ function generateImage() {
     const rng = seed ? seededRandom(Number(seed)) : cryptoRandom;
 
     for (let i = 0; i < imgData.data.length; i += 4) {
-        const [r, g, b, a] = randomPixel(rng);
+        const [r,g,b,a] = randomPixel(rng, type);
         imgData.data[i] = r;
         imgData.data[i+1] = g;
         imgData.data[i+2] = b;
