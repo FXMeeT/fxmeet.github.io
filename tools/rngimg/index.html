@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Image Generator</title>
+<style>
+  body { display: flex; flex-direction: column; align-items: center; font-family: sans-serif; margin: 20px; }
+  canvas { border: 1px solid #000; margin-top: 20px; }
+</style>
+</head>
+<body>
+<h1>Random Image Generator</h1>
+<canvas id="canvas"></canvas>
+
+<script>
+// ===== Helpers =====
+function getParams() {
+    const params = new URLSearchParams(location.search);
+    return {
+        res: params.get("res") || "128x128",
+        seed: params.get("seed") || null
+    };
+}
+
+// Crypto RNG
+function cryptoRandom() {
+    const arr = new Uint8Array(1);
+    crypto.getRandomValues(arr);
+    return arr[0] / 255;
+}
+
+// Seeded RNG (Park–Miller LCG)
+function seededRandom(seed) {
+    let s = seed % 2147483647;
+    return function() {
+        s = (s * 16807) % 2147483647;
+        return (s % 256) / 255;
+    }
+}
+
+// Generate random color pixel
+function randomPixel(rngFunc) {
+    return [
+        Math.floor(rngFunc() * 256), // R
+        Math.floor(rngFunc() * 256), // G
+        Math.floor(rngFunc() * 256), // B
+        255 // A
+    ];
+}
+
+// ===== Main =====
+function generateImage() {
+    const { res, seed } = getParams();
+    const [width, height] = res.split("x").map(Number);
+    const canvas = document.getElementById("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    const imgData = ctx.createImageData(width, height);
+
+    const rng = seed ? seededRandom(Number(seed)) : cryptoRandom;
+
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        const [r, g, b, a] = randomPixel(rng);
+        imgData.data[i] = r;
+        imgData.data[i+1] = g;
+        imgData.data[i+2] = b;
+        imgData.data[i+3] = a;
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+}
+
+generateImage();
+</script>
+</body>
+</html>
