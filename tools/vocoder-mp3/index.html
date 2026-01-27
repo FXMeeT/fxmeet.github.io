@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Web Vocoder</title>
+<style>
+body {
+  background:#0b0b0b;
+  color:#eee;
+  font-family:Arial, sans-serif;
+  padding:20px;
+}
+input, button {
+  margin:10px 0;
+  padding:8px;
+}
+button {
+  cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<h2>Web Audio Vocoder</h2>
+
+<label>Modulator (Voice):</label><br>
+<input type="file" id="modulator" accept="audio/*"><br>
+
+<label>Carrier (Music/Synth):</label><br>
+<input type="file" id="carrier" accept="audio/*"><br>
+
+<button id="run">Run Vocoder</button>
+<button id="download" disabled>Download Output</button>
+
+<script>
+const ctx = new AudioContext();
+let outputBuffer;
+
+async function loadAudio(file) {
+  const data = await file.arrayBuffer();
+  return await ctx.decodeAudioData(data);
+}
+
+function trimBuffers(buf1, buf2) {
+  const length = Math.min(buf1.length, buf2.length);
+  const out1 = ctx.createBuffer(1, length, buf1.sampleRate);
+  const out2 = ctx.createBuffer(1, length, buf2.sampleRate);
+  out1.copyToChannel(buf1.getChannelData(0).slice(0, length), 0);
+  out2.copyToChannel(buf2.getChannelData(0).slice(0, length), 0);
+  return [out1, out2];
+}
+
+function createVocoder(modBuf, carBuf, bands = 16) {
+  const length = modBuf.length;
+  outputBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
+  const out = outputBuffer.getChannelData(0);
+
+  const mod = modBuf.getChannelData(0);
+  const car = carBuf.getChannelData(0);
+
+  const filters = [];
+  const env = new Float32Array(length);
+
+  for (let b = 0; b < bands; b++) {
+    const fLow = 80 * Math.pow(2, b * 0.5);
+    const fHigh = fLow * 1.5;
+
+    filters.push({ fLow, fHigh });
+  }
+
+  for (const band of filters) {
+    const modBP = new BiquadFilterNode(ctx, {
+      type: "bandpass",
+      frequency: (band.fLow + band.fHigh) / 2,
+      Q: 1
+    });
+
+    const carBP = new BiquadFilterNode(ctx, {
+      type: "bandpass",
+      frequency: (band.fLow + band.fHigh) / 2,
+      Q: 1
+    });
+
+    const modGain = new GainNode(ctx);
+    const carGain = new GainNode(ctx);
+
+    for (let i = 0; i < length; i++) {
+      env[i] = Math.abs(mod[i]);
+    }
+
+    for (let i = 1; i < length; i++) {
+      env[i] = env[i - 1] * 0.98 + env[i] * 0.02;
+    }
+
+    for (let i = 0; i < length; i++) {
+      out[i] += car[i] * env[i];
+    }
+  }
+}
+
+function playBuffer(buffer) {
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start();
+}
+
+function downloadWav(buffer) {
+  const length = buffer.length * 2 + 44;
+  const wav = new ArrayBuffer(length);
+  const view = new DataView(wav);
+
+  function writeString(o, s) {
+    for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i));
+  }
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + buffer.length * 2, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.set
+  
