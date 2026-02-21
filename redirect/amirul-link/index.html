@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Redirecting...</title>
+
+<style>
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    font-family: Arial, sans-serif;
+    color: white;
+  }
+
+  .card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 40px;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    width: 320px;
+  }
+
+  .spinner {
+    margin: 0 auto 20px auto;
+    width: 60px;
+    height: 60px;
+    border: 6px solid rgba(255,255,255,0.3);
+    border-top: 6px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  h2 {
+    margin: 10px 0;
+  }
+
+  .dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+  }
+
+  @keyframes dots {
+    0%   { content: '.'; }
+    33%  { content: '..'; }
+    66%  { content: '...'; }
+    100% { content: '.'; }
+  }
+
+  a {
+    color: #fff;
+    font-weight: bold;
+    text-decoration: underline;
+  }
+
+  footer {
+    position: absolute;
+    bottom: 15px;
+    font-size: 14px;
+    opacity: 0.9;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="spinner"></div>
+  <h2>Redirecting<span class="dots"></span></h2>
+  <p>If you are not redirected, please tap the link below:</p>
+  <a href="https://photospace.life/LLTPQ5.png">Redirect here</a>
+</div>
+
+<footer>
+  Copyright ©️ oekoff <span id="year"></span>. All rights reserved
+</footer>
+
+<script>
+  // Set current year
+  document.getElementById("year").textContent = new Date().getFullYear();
+
+  // Redirect after 3 seconds
+  setTimeout(function() {
+    window.location.href = "https://photospace.life/LLTPQ5.png";
+  }, 1000);
+</script>
+
+</body>
+</html>
