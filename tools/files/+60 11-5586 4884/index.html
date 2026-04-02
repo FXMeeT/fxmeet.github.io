@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Viewer</title>
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
+    }
+
+    body {
+        background: #0f172a;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        color: white;
+    }
+
+    .container {
+        width: 100%;
+        max-width: 900px;
+        height: 100%;
+        max-height: 600px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    .viewer {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .viewer img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* Keeps image inside screen */
+        position: absolute;
+        transition: opacity 0.4s ease;
+        opacity: 0;
+    }
+
+    .viewer img.active {
+        opacity: 1;
+    }
+
+    .controls {
+        position: absolute;
+        bottom: 15px;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+    }
+
+    button {
+        background: rgba(255,255,255,0.15);
+        border: none;
+        padding: 10px 15px;
+        border-radius: 12px;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        backdrop-filter: blur(10px);
+        transition: 0.2s;
+    }
+
+    button:hover {
+        background: rgba(255,255,255,0.3);
+    }
+
+    .dots {
+        position: absolute;
+        bottom: 15px;
+        width: 100%;
+        text-align: center;
+    }
+
+    .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin: 4px;
+        background: rgba(255,255,255,0.3);
+        border-radius: 50%;
+    }
+
+    .dot.active {
+        background: white;
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 600px) {
+        .container {
+            max-height: 100%;
+        }
+
+        button {
+            font-size: 14px;
+            padding: 8px 12px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+    <div class="viewer" id="viewer"></div>
+
+    <div class="controls">
+        <button onclick="prev()">⬅</button>
+        <button onclick="next()">➡</button>
+    </div>
+
+    <div class="dots" id="dots"></div>
+</div>
+
+<script>
+const images = ["1.png","2.png","3.png","4.png","5.png"];
+const viewer = document.getElementById("viewer");
+const dotsContainer = document.getElementById("dots");
+
+let index = 0;
+
+// Load images
+images.forEach((src, i) => {
+    const img = document.createElement("img");
+    img.src = src;
+    if(i === 0) img.classList.add("active");
+    viewer.appendChild(img);
+
+    const dot = document.createElement("span");
+    dot.classList.add("dot");
+    if(i === 0) dot.classList.add("active");
+    dotsContainer.appendChild(dot);
+});
+
+const imgs = document.querySelectorAll(".viewer img");
+const dots = document.querySelectorAll(".dot");
+
+function show(i) {
+    imgs.forEach(img => img.classList.remove("active"));
+    dots.forEach(dot => dot.classList.remove("active"));
+
+    imgs[i].classList.add("active");
+    dots[i].classList.add("active");
+}
+
+function next() {
+    index = (index + 1) % images.length;
+    show(index);
+}
+
+function prev() {
+    index = (index - 1 + images.length) % images.length;
+    show(index);
+}
+
+// Swipe support (mobile)
+let startX = 0;
+
+viewer.addEventListener("touchstart", e => {
+    startX = e.touches[0].clientX;
+});
+
+viewer.addEventListener("touchend", e => {
+    let endX = e.changedTouches[0].clientX;
+    if(startX - endX > 50) next();
+    if(endX - startX > 50) prev();
+});
+</script>
+
+</body>
+</html>
