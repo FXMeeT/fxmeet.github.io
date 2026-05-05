@@ -50,14 +50,8 @@ button {
   <option value="iframe">iframe</option>
 </select>
 
-<label>Request method:</label>
-<select id="methodSelect">
-  <option value="get">GET</option>
-  <option value="head">HEAD</option>
-</select>
-
 <label>Number of tries (max 32):</label>
-<input id="triesInput" type="number" value="7" min="1" max="32">
+<input id="triesInput" type="number" value="7" min="1" max="128">
 
 <br>
 
@@ -73,33 +67,135 @@ const out = document.getElementById("results");
 
 let lastOutput = "";
 
-function buildUrl(baseUrl) {
-  const random = Math.floor(Math.random() * 1e10);
-  return baseUrl + (baseUrl.includes("?") ? "&" : "?") + "nocache=" + random;
+function loadResource(url, type) {
+  return new Promise((resolve) => {
+    const start = performance.now();
+
+    const nocacheUrl = url + (url.includes("?") ? "&" : "?") + "nocache=" + Date.now();
+
+    let el;
+    let loadStart = 0;
+
+    if (type === "img") {
+      el = new Image();
+
+      el.onload = () => {
+        const end = performance.now();
+        resolve({
+          nocache: nocacheUrl,
+          loadTime: end - loadStart,
+          total: end - start
+        });
+      };
+
+      el.onerror = () => {
+        const end = performance.now();
+        resolve({
+          nocache: nocacheUrl,
+          loadTime: -1,
+          total: end - start
+        });
+      };
+
+      loadStart = performance.now();
+      el.src = nocacheUrl;
+    }
+
+    else if (type === "iframe") {
+      el = document.createElement("iframe");
+
+      el.onload = () => {
+        const end = performance.now();
+        resolve({
+          nocache: nocacheUrl,
+          loadTime: end - loadStart,
+          total: end - start
+        });
+        document.body.removeChild(el);
+      };
+
+      el.onerror = () => {
+        const end = performance.now();
+        resolve({
+          nocache: nocacheUrl,
+          loadTime: -1,
+          total: end - start
+        });
+        document.body.removeChild(el);
+      };
+
+      loadStart = performance.now();
+      el.style.display = "none";
+      el.src = nocacheUrl;
+      document.body.appendChild(el);
+    }
+  });
 }
 
-/* ---------------- HEAD REQUEST ---------------- */
-async function headRequest(url) {
-  const start = performance.now();
+runBtn.onclick = async function () {
+  const baseUrl = document.getElementById("urlInput").value.trim();
+  const type = document.getElementById("typeSelect").value;
 
-  try {
-    await fetch(url, {
-      method: "HEAD",
-      cache: "no-store"
-    });
+  let tries = parseInt(document.getElementById("triesInput").value, 10);
 
-    const end = performance.now();
+  if (!baseUrl) {
+    out.textContent = "Please enter URL.";
+    return;
+  }
 
-    return {
-      loadTime: end - start,
-      total: end - start
-    };
+  if (isNaN(tries) || tries < 1) tries = 1;
+  if (tries > 128) tries = 128;
 
-  } catch (e) {
-    const end = performance.now();
+  out.textContent = `Running ${tries} tests (${type})...\n`;
 
-    return {
-      loadTime: -1,
+  let results = [];
+
+  for (let i = 0; i < tries; i++) {
+    results.push(await loadResource(baseUrl, type));
+  }
+
+  let totalLoad = 0;
+  let totalTime = 0;
+  let valid = 0;
+
+  let text = `RESULTS (${tries} TRIES | type=${type})\n\n`;
+
+  results.forEach((r, i) => {
+    text += `Run ${i + 1}:\n`;
+    text += `  URL: ${r.nocache}\n`;
+
+    if (r.loadTime < 0) {
+      text += `  FAILED\n  Total: ${r.total.toFixed(2)} ms\n\n`;
+    } else {
+      text += `  Load time: ${r.loadTime.toFixed(2)} ms\n`;
+      text += `  Total: ${r.total.toFixed(2)} ms\n\n`;
+
+      totalLoad += r.loadTime;
+      totalTime += r.total;
+      valid++;
+    }
+  });
+
+  if (valid > 0) {
+    text += "AVERAGE:\n";
+    text += `Load avg: ${(totalLoad / valid).toFixed(2)} ms\n`;
+    text += `Total avg: ${(totalTime / valid).toFixed(2)} ms\n`;
+  }
+
+  lastOutput = text;
+  out.textContent = text;
+};
+
+copyBtn.onclick = async function () {
+  if (!lastOutput) return;
+
+  await navigator.clipboard.writeText(lastOutput);
+  out.textContent = "Copied results!\n\n" + lastOutput;
+};
+</script>
+
+</body>
+</html>      loadTime: -1,
       total: end - start
     };
   }
