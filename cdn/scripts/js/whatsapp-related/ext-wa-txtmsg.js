@@ -3,7 +3,8 @@ const messages = [...document.querySelectorAll('div[data-testid^="conv-msg-"]')]
         const textEl = el.querySelector('[data-testid="selectable-text"] span');
         return textEl ? textEl.innerText.trim() : null;
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .reverse(); // 🔥 reverse order here
 
 const obj = {};
 
