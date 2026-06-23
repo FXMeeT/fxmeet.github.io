@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Manipulation</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+    <button id="uploadBtn">Upload Image</button>
+    <input type="file" id="fileInput" accept="jpeg/jpg/png/ico" style="display:none;">
+    
+    <div class="controls">
+        <label for="widthRange">Width: </label>
+        <input type="range" id="widthRange" min="480" max="1920" value="480">
+        <span id="widthValue">480</span>
+        <br>
+        <label for="heightRange">Height: </label>
+        <input type="range" id="heightRange" min="360" max="1080" value="360">
+        <span id="heightValue">360</span>
+        <br>
+        <label for="invertCheck">Invert Colors: </label>
+        <input type="checkbox" id="invertCheck">
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <button id="downloadBtn">Download Image</button>
+    
+<script src="./script.js">
+
+
+
+</script></body></html>
